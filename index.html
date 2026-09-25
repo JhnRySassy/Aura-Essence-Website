@@ -485,7 +485,7 @@
       meta.className = 'review-meta';
       const name = document.createElement('span');
       name.className = 'review-name';
-      name.textContent = review.name || 'Customer';
+      name.textContent = review.customerName || review.name || 'Customer';
       const scent = document.createElement('span');
       scent.className = 'review-scent';
       scent.textContent = (review.scent || '').toUpperCase();
