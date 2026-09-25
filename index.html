@@ -132,7 +132,7 @@
         <span class="badge">Gift-ready Packaging</span>
       </div>
       <div class="hero-actions">
-        <div class="price-tag"><span>PRICE</span>&#8369;450</div>
+        <div class="price-tag"><span>PRICE</span>&#8369;420</div>
         <a class="btn-primary" href="#collection">See the Collection</a>
       </div>
     </div>
@@ -242,7 +242,7 @@
 
 <footer>
   <div class="mark">A &amp; E</div>
-  <p>Aura &amp; Essence &middot; Extrait de Parfum &middot; &#8369;450</p>
+  <p>Aura &amp; Essence &middot; Extrait de Parfum &middot; &#8369;430</p>
 </footer>
 
 <script>
@@ -271,7 +271,7 @@
           <h4>${p.name}</h4>
           <p>${p.desc}</p>
           <div class="pfoot">
-            <span class="pprice">&#8369;450</span>
+            <span class="pprice">&#8369;430</span>
             <button class="porder" data-id="${p.id}">Order This</button>
           </div>
         </div>`;
@@ -337,7 +337,7 @@
       'Payment: ' + data.get('payment'),
       'Notes: ' + (data.get('notes') || '—'),
       '—————————————',
-      'Price per bottle: ₱450'
+      'Price per bottle: ₱430'
     ].join('\n');
 
     // Show the order summary immediately.
@@ -367,8 +367,8 @@
         address: data.get('address') || '',
         payment: data.get('payment') || '',
         notes: data.get('notes') || '',
-        price: '450',
-        total: String((parseInt((data.get('qty') || '').match(/\d+/)?.[0] || '1', 10)) * 450)
+        price: '430',
+        total: String((parseInt((data.get('qty') || '').match(/\d+/)?.[0] || '1', 10)) * 430)
       });
 
       const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
