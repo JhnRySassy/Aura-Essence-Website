@@ -69,10 +69,14 @@
   .pcard .ptag { font-size:9.5px; letter-spacing:0.14em; color:var(--brass-bright); }
   .pcard h4 { font-family:'Cormorant Garamond',serif; font-weight:500; font-size:19px; margin:0; }
   .pcard p { font-size:12px; line-height:1.55; color:var(--parchment-dim); font-weight:300; margin:0; flex:1; }
-  .pcard .pfoot { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
-  .pcard .pprice { font-family:'Cormorant Garamond',serif; color:var(--brass-bright); font-size:16px; }
-  .pcard .porder { cursor:pointer; font-size:10.5px; letter-spacing:0.08em; color:var(--ink); background:linear-gradient(180deg,var(--brass-bright),var(--brass)); border:none; padding:8px 12px; border-radius:2px; }
-
+  .pcard .pfoot { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+  .pcard .pprice { font-family:'Cormorant Garamond',serif; color:var(--brass-bright); font-size:17px; }
+  .pcard .pactions { display:flex; gap:8px; }
+  .pcard .pdetails,
+  .pcard .porder { flex:1; text-align:center; font-size:10px; letter-spacing:0.06em; padding:9px 6px; border-radius:3px; cursor:pointer; white-space:nowrap; font-family:'Jost',sans-serif; }
+  .pcard .pdetails { border:1px solid var(--line); background:transparent; color:var(--brass-bright); }
+  .pcard .pdetails:hover { border-color:var(--brass-bright); background:rgba(212,178,106,0.08); }
+  .pcard .porder { border:none; color:var(--ink); background:linear-gradient(180deg,var(--brass-bright),var(--brass)); }
   section.order { padding: clamp(50px,8vh,90px) 0; background:var(--ink-2); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
   .order-grid { display:grid; grid-template-columns:0.9fr 1.1fr; gap:clamp(30px,4vw,60px); align-items:flex-start; }
   form { display:grid; gap:16px; }
@@ -81,7 +85,7 @@
   .field input:focus, .field select:focus, .field textarea:focus { outline:1px solid var(--brass-bright); border-color:var(--brass-bright); }
   .row2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   button.submit { justify-self:start; margin-top:6px; cursor:pointer; border:none; font-size:13px; letter-spacing:0.14em; color:var(--ink);
-    background:linear-gradient(180deg,var(--brass-bright),var(--brass)); padding:14px 28px; border-radius:2px; }
+  background:linear-gradient(180deg,var(--brass-bright),var(--brass)); padding:14px 28px; border-radius:2px; }
 
   .summary-box { border:1px solid var(--line); padding:24px; min-height:220px; display:flex; flex-direction:column; gap:14px; }
   .summary-box h4 { margin:0; font-family:'Cormorant Garamond',serif; font-size:19px; color:var(--brass-bright); }
@@ -151,9 +155,6 @@
 
 
   /* FRAGRANCE DETAILS */
-  .pactions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .pdetails { border:1px solid var(--line); background:transparent; color:var(--text); padding:10px 12px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
-  .pdetails:hover { border-color:var(--muted); }
   .fragrance-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.78); }
   .fragrance-modal.show { display:flex; }
   .fragrance-dialog { width:min(900px,100%); max-height:min(88vh,900px); overflow:auto; background:#111; border:1px solid var(--line); box-shadow:0 30px 80px rgba(0,0,0,.5); }
@@ -423,8 +424,8 @@
           <div class="pfoot">
             <span class="pprice">&#8369;430</span>
             <div class="pactions">
-              <button type="button" class="pdetails" data-details-id="${p.id}">View Details</button>
-              <button type="button" class="porder" data-id="${p.id}">Order This</button>
+              <button type="button" class="pdetails" data-details-id="${p.id}">Details</button>
+              <button type="button" class="porder" data-id="${p.id}">Order</button>
             </div>
           </div>
         </div>`;
