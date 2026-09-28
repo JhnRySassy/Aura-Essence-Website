@@ -265,6 +265,40 @@
         position: relative;
         margin-top: 26px;
       }
+      .carousel-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 5;
+        width: 42px;
+        height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: rgba(14, 13, 12, 0.9);
+        color: var(--brass-bright);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        backdrop-filter: blur(5px);
+      }
+      .carousel-arrow:hover:not(:disabled) {
+        background: rgba(212, 178, 106, 0.12);
+        border-color: var(--brass-bright);
+      }
+      .carousel-arrow:disabled {
+        opacity: 0.25;
+        cursor: default;
+      }
+      .carousel-arrow.left {
+        left: -18px;
+      }
+      .carousel-arrow.right {
+        right: -18px;
+      }
       .carousel {
         display: flex;
         gap: 18px;
@@ -492,6 +526,18 @@
       }
 
       @media (max-width: 760px) {
+        .carousel-arrow {
+          width: 36px;
+          height: 36px;
+          font-size: 18px;
+          background: rgba(14, 13, 12, 0.96);
+        }
+        .carousel-arrow.left {
+          left: 4px;
+        }
+        .carousel-arrow.right {
+          right: 4px;
+        }
         .hero .wrap {
           grid-template-columns: 1fr;
         }
@@ -980,7 +1026,23 @@
           </button>
         </div>
         <div class="carousel-wrap">
+          <button
+            type="button"
+            class="carousel-arrow left"
+            id="carouselPrev"
+            aria-label="Previous perfumes"
+            title="Previous"
+          >&#10094;</button>
+
           <div class="carousel" id="carousel"></div>
+
+          <button
+            type="button"
+            class="carousel-arrow right"
+            id="carouselNext"
+            aria-label="Next perfumes"
+            title="Next"
+          >&#10095;</button>
         </div>
       </div>
     </section>
@@ -1435,6 +1497,8 @@
       ];
 
       const carousel = document.getElementById("carousel");
+      const carouselPrev = document.getElementById("carouselPrev");
+      const carouselNext = document.getElementById("carouselNext");
       const scentSelect = document.getElementById("scent");
       const tabs = document.querySelectorAll(".tab");
       let activeCat = "men";
@@ -1461,6 +1525,30 @@
           carousel.appendChild(card);
         });
       }
+
+      function updateCarouselArrows() {
+        const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+        const hasOverflow = maxScroll > 2;
+
+        carouselPrev.disabled = !hasOverflow || carousel.scrollLeft <= 2;
+        carouselNext.disabled = !hasOverflow || carousel.scrollLeft >= maxScroll - 2;
+      }
+
+      function scrollCarousel(direction) {
+        const card = carousel.querySelector(".pcard");
+        const gap = 18;
+        const amount = card ? card.getBoundingClientRect().width + gap : 248;
+
+        carousel.scrollBy({
+          left: direction * amount,
+          behavior: "smooth",
+        });
+      }
+
+      carouselPrev.addEventListener("click", () => scrollCarousel(-1));
+      carouselNext.addEventListener("click", () => scrollCarousel(1));
+      carousel.addEventListener("scroll", updateCarouselArrows, { passive: true });
+      window.addEventListener("resize", updateCarouselArrows);
 
       function renderScentOptions() {
         scentSelect.innerHTML = PRODUCTS.map(
@@ -1538,6 +1626,7 @@
           tab.classList.add("active");
           activeCat = tab.dataset.cat;
           renderCarousel(activeCat);
+          requestAnimationFrame(updateCarouselArrows);
         });
       });
 
@@ -1556,6 +1645,7 @@
 
       renderScentOptions();
       renderCarousel(activeCat);
+      requestAnimationFrame(updateCarouselArrows);
 
       // GOOGLE SHEETS DATABASE
       // Replace this with your deployed Google Apps Script Web App URL.
