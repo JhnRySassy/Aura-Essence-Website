@@ -3,10 +3,10 @@ import { ApiClient } from "./admin-api.js";
 
 class AdminSession {
   constructor(){this.data=JSON.parse(sessionStorage.getItem("aeAdminSession")||"null")||{};}
-  save(identifier,password,key){this.data={identifier,password,key};sessionStorage.setItem("aeAdminSession",JSON.stringify(this.data));}
+  save(identifier,password,adminkey){this.data={identifier,password,adminkey};sessionStorage.setItem("aeAdminSession",JSON.stringify(this.data));}
   clear(){this.data={};sessionStorage.removeItem("aeAdminSession");}
   get(){return this.data;}
-  valid(){return !!(this.data.identifier&&this.data.password&&this.data.key);}
+  valid(){return !!(this.data.identifier&&this.data.password&&this.data.adminkey);}
 }
 
 class AdminApp {
