@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
   </head>
   <body>
     <header class="nav">
@@ -538,61 +538,11 @@
     </div>
 
 
-    <section class="admin-section" id="adminSection">
-      <div class="wrap">
-        <h2 class="sec-title">AURA &amp; ESSENCE ADMIN</h2>
-        <p class="sec-lede">Manage your catalog, inventory, product badges, bestseller status, and active products.</p>
-        <div class="admin-panel">
-          <div class="admin-toolbar">
-            <input class="admin-key" id="adminKey" type="password" placeholder="Admin key">
-            <button type="button" class="admin-btn primary" id="adminLoadBtn">LOAD ADMIN</button>
-            <button type="button" class="admin-btn" id="adminNewBtn">+ ADD PRODUCT</button>
-          </div>
-          <div class="admin-status" id="adminStatus">Open this page with <b>?admin=1</b> to manage the catalog.</div>
-          <div class="admin-table-wrap" id="adminTableWrap" style="display:none">
-            <table class="admin-table">
-              <thead><tr><th>Product</th><th>Stock</th><th>Price</th><th>Badges</th><th>Active</th><th>Actions</th></tr></thead>
-              <tbody id="adminProductRows"></tbody>
-            </table>
-          </div>
-          <form class="admin-form" id="adminProductForm">
-            <input type="hidden" id="adminEditId">
-            <div class="admin-form-grid">
-              <div class="admin-field"><label>Name</label><input id="adminName" required></div>
-              <div class="admin-field"><label>ID / Slug</label><input id="adminId" placeholder="auto-generated if blank"></div>
-              <div class="admin-field"><label>Category</label><select id="adminCat"><option value="men">For Him</option><option value="women">For Her</option></select></div>
-              <div class="admin-field"><label>Price</label><input id="adminPrice" type="number" min="0" value="430"></div>
-              <div class="admin-field"><label>Stock</label><input id="adminStock" type="number" min="0" value="10"></div>
-              <div class="admin-field"><label>Image URL (for new products)</label><input id="adminImg" placeholder="https://..."></div>
-              <div class="admin-field" style="grid-column:1/-1"><label>Short Description</label><input id="adminDesc"></div>
-              <div class="admin-field" style="grid-column:1/-1"><label>Badges</label><div class="admin-checks">
-                <label><input type="checkbox" value="BEST SELLER" class="adminBadge"> BEST SELLER</label>
-                <label><input type="checkbox" value="FEATURED" class="adminBadge"> FEATURED</label>
-                <label><input type="checkbox" value="SIGNATURE" class="adminBadge"> SIGNATURE</label>
-                <label><input type="checkbox" value="NEW" class="adminBadge"> NEW</label>
-                <label><input type="checkbox" value="LIMITED" class="adminBadge"> LIMITED</label>
-              </div></div>
-              <div class="admin-field"><label>Profiles (comma separated)</label><input id="adminProfiles" placeholder="fresh, woody"></div>
-              <div class="admin-field"><label>Strength</label><select id="adminStrength"><option>subtle</option><option>moderate</option><option>bold</option></select></div>
-              <div class="admin-field"><label>Longevity /10</label><input id="adminLongevity" type="number" min="1" max="10" value="7"></div>
-              <div class="admin-field"><label>Projection /10</label><input id="adminProjection" type="number" min="1" max="10" value="7"></div>
-              <div class="admin-field"><label>Time (comma separated)</label><input id="adminTime" placeholder="day, night"></div>
-              <div class="admin-field"><label>Occasion</label><input id="adminOccasion" placeholder="Daily • Office • Night Out"></div>
-            </div>
-            <div class="admin-toolbar">
-              <button type="submit" class="admin-btn primary">SAVE PRODUCT</button>
-              <button type="button" class="admin-btn" id="adminCancelBtn">CANCEL</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </section>
-
     <footer>
       <div class="mark">A &amp; E</div>
       <p>Aura &amp; Essence &middot; Extrait de Parfum &middot; &#8369;430</p>
     </footer>
 
-    <script type="module" src="./script.js"></script>
+    <script type="module" src="assets/js/app.js"></script>
   </body>
 </html>
