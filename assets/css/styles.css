@@ -342,39 +342,8 @@
         color:var(--brass-bright);
       }
       .product-rating span:last-child { color:var(--parchment-dim); }
-      .profile-bars { display:grid; gap:12px; margin-top:18px; }
-      .profile-label {
-        font-size:10px;
-        letter-spacing:.12em;
-        text-transform:uppercase;
-        color:var(--parchment-dim);
-      }
-      .profile-tags {
-        display:flex;
-        flex-wrap:wrap;
-        gap:8px;
-        margin-top:2px;
-        padding-bottom:4px;
-      }
-      .profile-tag {
-        display:inline-flex;
-        align-items:center;
-        border:1px solid var(--line);
-        color:var(--parchment);
-        background:rgba(212,178,106,.05);
-        padding:8px 11px;
-        font-size:10px;
-        letter-spacing:.08em;
-        text-transform:uppercase;
-      }
-      .profile-stat {
-        display:grid;
-        grid-template-columns:82px 1fr 38px;
-        gap:10px;
-        align-items:center;
-        font-size:10px;
-        color:var(--parchment-dim);
-      }
+      .profile-bars { display:grid; gap:10px; margin-top:18px; }
+      .profile-row { display:grid; grid-template-columns:72px 1fr 32px; gap:10px; align-items:center; font-size:10px; color:var(--parchment-dim); }
       .profile-track {
         height:6px;
         background:rgba(255,255,255,.10);
@@ -389,8 +358,36 @@
         min-width:2px;
         border-radius:999px;
         transition:width .45s ease;
-        background:linear-gradient(90deg,var(--brass),var(--brass-bright));
-        box-shadow:0 0 8px rgba(212,178,106,.22);
+        box-shadow:0 0 8px rgba(255,255,255,.12);
+      }
+      /* Individual fragrance-profile colors */
+      .profile-row:nth-child(1) .profile-fill {
+        background:linear-gradient(90deg,#22c55e,#86efac);
+        box-shadow:0 0 8px rgba(34,197,94,.35);
+      }
+      .profile-row:nth-child(2) .profile-fill {
+        background:linear-gradient(90deg,#ec4899,#f9a8d4);
+        box-shadow:0 0 8px rgba(236,72,153,.35);
+      }
+      .profile-row:nth-child(3) .profile-fill {
+        background:linear-gradient(90deg,#92400e,#d6a15c);
+        box-shadow:0 0 8px rgba(146,64,14,.35);
+      }
+      .profile-row:nth-child(4) .profile-fill {
+        background:linear-gradient(90deg,#a855f7,#d8b4fe);
+        box-shadow:0 0 8px rgba(168,85,247,.35);
+      }
+      .profile-row:nth-child(5) .profile-fill {
+        background:linear-gradient(90deg,#f97316,#fdba74);
+        box-shadow:0 0 8px rgba(249,115,22,.35);
+      }
+      .profile-row:nth-child(6) .profile-fill {
+        background:linear-gradient(90deg,#3b82f6,#93c5fd);
+        box-shadow:0 0 8px rgba(59,130,246,.35);
+      }
+      .profile-row:nth-child(7) .profile-fill {
+        background:linear-gradient(90deg,#ef4444,#fca5a5);
+        box-shadow:0 0 8px rgba(239,68,68,.35);
       }
       .daynight { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
       .daynight span { border:1px solid var(--line); padding:7px 9px; font-size:10px; color:var(--parchment-dim); }
