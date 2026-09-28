@@ -1,62 +1,36 @@
 # AURA & ESSENCE
 
-Static frontend for the AURA & ESSENCE perfume store.
-
-## Folder structure
+## GitHub structure
+`index.html` and `admin.html` are both at the repository root. Do not put them inside an `Aura Site` folder.
 
 ```text
 aura-essence/
 ├── index.html
+├── admin.html
 ├── assets/
 │   ├── css/
-│   │   └── styles.css
+│   │   ├── styles.css
+│   │   └── admin.css
 │   ├── js/
 │   │   ├── products.js
-│   │   └── app.js
+│   │   ├── app.js
+│   │   ├── admin.js
+│   │   └── admin-api.js
 │   └── images/
-│       ├── sauvage.jpg
-│       ├── invictus.jpg
-│       ├── strongerwithyou.jpg
-│       ├── aquadigio.jpg
-│       ├── eros.jpg
-│       ├── missdior.jpg
-│       ├── blackop.jpg
-│       ├── valaya.jpg
-│       ├── paradoxe.jpg
-│       └── eclat.jpg
-└── README.md
+└── Aura_Essence_Google_Apps_Script_ADMIN.gs
 ```
 
-`index.html` is intentionally at the repository root so GitHub Pages/Vercel can serve it directly.
+## Admin login
+1. In Google Apps Script, change `ADMIN_USERNAME`, `ADMIN_LOGIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_KEY`.
+2. Deploy the Apps Script as a Web App: Execute as **Me**, access **Anyone**.
+3. In `assets/js/admin.js`, replace `PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE` with the `/exec` URL.
+4. Open `/admin.html` on your Vercel/GitHub Pages domain.
+5. Enter username/email + password, then the admin key.
 
-## GitHub
+## Vercel
+Root Directory must be blank. No build command or output directory is required.
 
-1. Create a new GitHub repository.
-2. Open the repository and click **Add file → Upload files**.
-3. Upload `index.html` and the whole `assets` folder.
-4. Commit the files.
-5. Your repository root should show `index.html` directly, NOT `Aura Site/index.html`.
+## Notes
+The admin backend creates/uses these sheets in the order spreadsheet: Products, Promotions, Site Settings, Admin Audit, and Orders. Existing Reviews remain in the configured review spreadsheet.
 
-For GitHub Pages:
-- **Settings → Pages**
-- Source: **Deploy from a branch**
-- Branch: `main`
-- Folder: `/ (root)`
-
-For Vercel:
-- Import the GitHub repository.
-- **Root Directory:** leave it empty / repository root.
-- No build command is required for this static frontend.
-- The entry point is the root `index.html`.
-
-## Local development
-
-Because `app.js` is an ES module, do not open `index.html` with `file://` if your browser blocks modules. Use a simple local server, for example VS Code Live Server.
-
-## Editing products
-
-`assets/js/products.js` contains the seed product catalog and product model. The live Admin Dashboard can manage products through the Google Apps Script API.
-
-## Google Apps Script
-
-Keep the Google Apps Script project separate from this frontend repository if you do not want server-side credentials/configuration exposed in GitHub.
+Admin features include dashboard analytics, order status management, CSV export, product CRUD, inventory, badges, sort order, promotions, homepage controls, low-stock threshold, customer count, top-product sales, and audit log.
