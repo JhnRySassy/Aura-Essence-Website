@@ -110,167 +110,10 @@ body: new URLSearchParams(params).toString()
   }
 }
 
-class AdminManager {
-  constructor(api, catalog) {
-    this.api = api;
-    this.catalog = catalog;
-    this.products = [];
-    this.section = document.getElementById("adminSection");
-    this.status = document.getElementById("adminStatus");
-    this.tableWrap = document.getElementById("adminTableWrap");
-    this.rows = document.getElementById("adminProductRows");
-    this.form = document.getElementById("adminProductForm");
-    this.keyInput = document.getElementById("adminKey");
-  }
-
-  key() { return this.keyInput?.value.trim() || sessionStorage.getItem("aeAdminKey") || ""; }
-  setStatus(message, error = false) {
-    if (!this.status) return;
-    this.status.textContent = message;
-    this.status.style.color = error ? "#d98b8b" : "var(--parchment-dim)";
-  }
-
-  async request(method, params) {
-    return method === "GET" ? this.api.get(params) : this.api.post(params);
-  }
-
-  resetForm() {
-    this.form?.reset();
-    document.getElementById("adminEditId").value = "";
-    document.getElementById("adminId").disabled = false;
-    document.querySelectorAll(".adminBadge").forEach(input => input.checked = false);
-    document.getElementById("adminPrice").value = PRODUCT_PRICE;
-    document.getElementById("adminStock").value = 10;
-    document.getElementById("adminLongevity").value = 7;
-    document.getElementById("adminProjection").value = 7;
-  }
-
-  fillForm(product) {
-    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ""; };
-    set("adminEditId", product.id);
-    set("adminId", product.id);
-    document.getElementById("adminId").disabled = true;
-    set("adminName", product.name); set("adminCat", product.cat); set("adminPrice", product.price || PRODUCT_PRICE);
-    set("adminStock", product.stock ?? 10); set("adminImg", product.img); set("adminDesc", product.desc);
-    set("adminDescLong", product.descLong); set("adminTopNotes", (product.topNotes || []).join(", "));
-    set("adminHeartNotes", (product.heartNotes || []).join(", ")); set("adminBaseNotes", (product.baseNotes || []).join(", "));
-    set("adminApplication", product.application);
-    set("adminProfiles", (product.profiles || []).join(", ")); set("adminStrength", product.strength || "moderate");
-    set("adminLongevity", product.longevity || 7); set("adminProjection", product.projection || 7);
-    set("adminTime", (product.time || []).join(", ")); set("adminOccasion", product.occasion || "");
-    document.querySelectorAll(".adminBadge").forEach(input => input.checked = (product.badges || []).includes(input.value));
-    this.form?.classList.add("show");
-    this.form?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  renderTable() {
-    if (!this.rows) return;
-    this.rows.innerHTML = this.products.map(product => `
-<tr>
-  <td><div class="admin-product-name">${product.name}</div><small>${product.id}</small></td>
-  <td>${product.stock == null ? "—" : product.stock}</td>
-  <td>₱${Number(product.price || PRODUCT_PRICE).toLocaleString()}</td>
-  <td class="admin-badges">${(product.badges || []).join(" • ") || "—"}</td>
-  <td>${product.active !== false ? "Yes" : "No"}</td>
-  <td><button type="button" class="admin-btn" data-admin-edit="${product.id}">Edit</button> <button type="button" class="admin-btn danger" data-admin-delete="${product.id}">Delete</button></td>
-</tr>`).join("");
-    this.tableWrap.style.display = "block";
-  }
-
-  async load() {
-    const key = this.key();
-    if (!key) { this.setStatus("Enter your admin key first.", true); return; }
-    sessionStorage.setItem("aeAdminKey", key);
-    this.setStatus("Loading catalog…");
-    try {
-let result = await this.request("GET", { action: "adminProducts", adminKey: key });
-if (!result.success) throw new Error(result.message || "Unable to load admin catalog.");
-if (!result.products.length) {
-  const seed = catalog.all().map(product => ({
-    id: product.id, name: product.name, cat: product.cat, desc: product.desc, price: product.price || PRODUCT_PRICE, stock: product.stock ?? 10,
-    badges: PRODUCT_META[product.id]?.badges || [], profiles: PRODUCT_META[product.id]?.profiles || [], longevity: PRODUCT_META[product.id]?.longevity,
-    projection: PRODUCT_META[product.id]?.projection, strength: PRODUCT_META[product.id]?.strength, time: PRODUCT_META[product.id]?.time || [], occasion: product.occasion,
-    descLong: product.descLong, topNotes: product.topNotes || [], heartNotes: product.heartNotes || [], baseNotes: product.baseNotes || [], application: product.application, img: product.img
-  }));
-  result = await this.request("POST", { action: "adminSeedProducts", adminKey: key, products: JSON.stringify(seed) });
-  if (!result.success) throw new Error(result.message || "Unable to initialize Products sheet.");
-  result = await this.request("GET", { action: "adminProducts", adminKey: key });
-}
-this.products = result.products || [];
-this.products.forEach(remote => {
-  const local = this.catalog.find(remote.id);
-  if (local) {
-    const merged = {
-      ...local,
-      ...remote,
-      img: remote.img || local.img,
-      descLong: remote.descLong || local.descLong,
-      topNotes: remote.topNotes?.length ? remote.topNotes : (local.topNotes || []),
-      heartNotes: remote.heartNotes?.length ? remote.heartNotes : (local.heartNotes || []),
-      baseNotes: remote.baseNotes?.length ? remote.baseNotes : (local.baseNotes || []),
-      application: remote.application || local.application,
-      occasion: remote.occasion || local.occasion
-    };
-    Object.assign(local, merged);
-  } else this.catalog.upsert(remote);
-  PRODUCT_META[remote.id] = Object.assign(PRODUCT_META[remote.id] || {}, remote);
-});
-this.renderTable();
-renderScentOptions(); renderReviewScentOptions(); renderCarousel(activeCat); renderCart(); syncQuantity();
-this.setStatus(`Catalog loaded — ${this.products.length} product(s).`);
-    } catch (error) { this.setStatus(error.message || "Admin request failed.", true); }
-  }
-
-  bind() {
-    if (!this.section) return;
-    if (new URLSearchParams(location.search).get("admin") === "1") {
-this.section.classList.add("show");
-this.keyInput.value = sessionStorage.getItem("aeAdminKey") || "";
-    }
-    document.getElementById("adminLoadBtn")?.addEventListener("click", () => this.load());
-    document.getElementById("adminNewBtn")?.addEventListener("click", () => { this.resetForm(); this.form.classList.add("show"); });
-    document.getElementById("adminCancelBtn")?.addEventListener("click", () => this.form.classList.remove("show"));
-    this.rows?.addEventListener("click", async event => {
-const edit = event.target.closest("[data-admin-edit]");
-const del = event.target.closest("[data-admin-delete]");
-if (edit) { const product = this.products.find(item => item.id === edit.dataset.adminEdit); if (product) this.fillForm(product); return; }
-if (del) {
-  if (!confirm("Delete this product from the managed catalog?")) return;
-  try {
-    const result = await this.request("POST", { action: "adminDeleteProduct", adminKey: this.key(), id: del.dataset.adminDelete });
-    if (!result.success) throw new Error(result.message);
-    await this.load();
-  } catch (error) { this.setStatus(error.message, true); }
-}
-    });
-    this.form?.addEventListener("submit", async event => {
-event.preventDefault();
-const key = this.key();
-if (!key) { this.setStatus("Enter your admin key first.", true); return; }
-const badges = [...document.querySelectorAll(".adminBadge:checked")].map(input => input.value);
-const value = id => document.getElementById(id).value.trim();
-const payload = {
-  action: "adminSaveProduct", adminKey: key, id: value("adminId"), name: value("adminName"), cat: document.getElementById("adminCat").value,
-  price: value("adminPrice"), stock: value("adminStock"), img: value("adminImg"), desc: value("adminDesc"), badges: badges.join(","), active: "true",
-  profiles: value("adminProfiles"), time: value("adminTime"), strength: document.getElementById("adminStrength").value, longevity: value("adminLongevity"),
-  projection: value("adminProjection"), occasion: value("adminOccasion"),
-  descLong: value("adminDescLong"), topNotes: value("adminTopNotes"), heartNotes: value("adminHeartNotes"),
-  baseNotes: value("adminBaseNotes"), application: value("adminApplication")
-};
-try {
-  const result = await this.request("POST", payload);
-  if (!result.success) throw new Error(result.message);
-  this.form.classList.remove("show"); this.setStatus("Product saved successfully."); await this.load();
-} catch (error) { this.setStatus(error.message || "Unable to save product.", true); }
-    });
-  }
-}
-
 const catalog = new ProductCatalog(PRODUCTS, PRODUCT_META);
 const cartManager = new CartManager();
 const wishlistManager = new WishlistManager();
 let apiClient;
-let adminManager;
 let favorites = wishlistManager.items;
 let cart = cartManager.items;
 
@@ -330,13 +173,14 @@ function getVisibleProducts(cat) {
   const query = (productSearch?.value || "").trim().toLowerCase();
   const profile = profileFilter?.value || "all";
   return catalog.all().filter((p) => {
+    if (p.active === false) return false;
     if (p.cat !== cat) return false;
     const meta = PRODUCT_META[p.id] || {};
     const searchable = [p.name, p.desc, ...(p.topNotes || []), ...(p.heartNotes || []), ...(p.baseNotes || []), ...(meta.profiles || [])].join(" ").toLowerCase();
     if (query && !searchable.includes(query)) return false;
     if (profile !== "all" && !(meta.profiles || []).includes(profile)) return false;
     return true;
-  });
+  }).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
 }
 
 function renderCarousel(cat) {
@@ -550,7 +394,6 @@ requestAnimationFrame(updateCarouselArrows);
 const GOOGLE_SHEETS_WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
 apiClient = new ApiClient(GOOGLE_SHEETS_WEB_APP_URL);
-adminManager = new AdminManager(apiClient, catalog);
 
 
 // PRODUCT CATALOG SYNC — public catalog reads admin-managed inventory/badges.
@@ -561,14 +404,12 @@ async function loadManagedProducts() {
     const result = await response.json();
     if (!result.success || !Array.isArray(result.products)) return;
     result.products.forEach(remote => {
-const existing = catalog.find(remote.id);
-if (existing) Object.assign(existing, remote, { img: remote.img || existing.img, desc: remote.desc || existing.desc });
-else catalog.upsert(remote);
-PRODUCT_META[remote.id] = {
-  profiles: remote.profiles || [], occasion: remote.occasion ? remote.occasion.split("•").map(x=>x.trim()) : [],
-  strength: remote.strength || "moderate", longevity: remote.longevity || 7, projection: remote.projection || 7,
-  time: remote.time || [], badges: remote.badges || []
-};
+      const existing = catalog.find(remote.id);
+      if (existing) Object.assign(existing, { ...existing, ...remote, img: remote.img || existing.img, desc: remote.desc || existing.desc, descLong: remote.descLong || existing.descLong, topNotes: remote.topNotes?.length ? remote.topNotes : existing.topNotes, heartNotes: remote.heartNotes?.length ? remote.heartNotes : existing.heartNotes, baseNotes: remote.baseNotes?.length ? remote.baseNotes : existing.baseNotes, application: remote.application || existing.application });
+      else catalog.upsert(remote);
+      PRODUCT_META[remote.id] = Object.assign(PRODUCT_META[remote.id] || {}, {
+        profiles: remote.profiles || [], occasion: remote.occasion || "", strength: remote.strength || "moderate", longevity: remote.longevity || 7, projection: remote.projection || 7, time: remote.time || [], badges: remote.badges || [], sortOrder: remote.sortOrder || 0
+      });
     });
     renderScentOptions(); renderReviewScentOptions(); renderCarousel(activeCat); renderCart(); syncQuantity();
   } catch (error) { console.warn("Managed catalog unavailable; using built-in catalog.", error); }
@@ -1086,5 +927,3 @@ copyBtn.textContent = "Copy Order Summary";
   }
 });
     
-// Admin UI is encapsulated in AdminManager.
-adminManager.bind();
