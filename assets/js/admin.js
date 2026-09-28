@@ -49,7 +49,7 @@ class AdminApp {
      * Web App URL ending in /exec
      */
     this.api = new ApiClient(
-      "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE"
+      "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec"
     );
 
     this.session = new AdminSession();
