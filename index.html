@@ -299,6 +299,121 @@
       .carousel-arrow.right {
         right: -18px;
       }
+      .collection-tools {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto auto;
+        gap: 10px;
+        margin-top: 24px;
+      }
+      .collection-search, .collection-filter {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        background: var(--ink-2);
+        color: var(--parchment);
+        padding: 11px 13px;
+        font: inherit;
+        outline: none;
+      }
+      .collection-search:focus, .collection-filter:focus {
+        border-color: var(--brass);
+      }
+      .wishlist-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 3;
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 50%;
+        background: rgba(10,10,10,.78);
+        color: var(--parchment);
+        cursor: pointer;
+        font-size: 17px;
+      }
+      .wishlist-btn.active { color: var(--brass-bright); border-color: var(--brass); }
+      .pimg { position: relative; }
+      .product-badges {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        z-index: 2;
+      }
+      .product-badge {
+        padding: 5px 7px;
+        background: rgba(12,12,12,.88);
+        border: 1px solid var(--brass);
+        color: var(--brass-bright);
+        font-size: 8px;
+        letter-spacing: .12em;
+      }
+      .product-rating {
+        display:flex;
+        align-items:center;
+        gap:7px;
+        font-size:10px;
+        color:var(--brass-bright);
+      }
+      .product-rating span:last-child { color:var(--parchment-dim); }
+      .profile-bars { display:grid; gap:10px; margin-top:18px; }
+      .profile-row { display:grid; grid-template-columns:72px 1fr 32px; gap:10px; align-items:center; font-size:10px; color:var(--parchment-dim); }
+      .profile-track { height:5px; background:rgba(255,255,255,.08); overflow:hidden; }
+      .profile-fill { height:100%; background:linear-gradient(90deg,var(--brass),var(--brass-bright)); }
+      .daynight { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+      .daynight span { border:1px solid var(--line); padding:7px 9px; font-size:10px; color:var(--parchment-dim); }
+      .feature-section { padding: clamp(45px,7vh,75px) 0; border-top:1px solid var(--line); }
+      .feature-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:28px; }
+      .feature-card { border:1px solid var(--line); background:var(--ink-2); padding:22px; }
+      .feature-card h3 { margin:0 0 8px; font-family:'Cormorant Garamond',serif; color:var(--brass-bright); font-size:24px; font-weight:500; }
+      .feature-card p { margin:0; color:var(--parchment-dim); font-size:13px; line-height:1.65; }
+      .quiz-options { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+      .quiz-option { border:1px solid var(--line); background:transparent; color:var(--parchment-dim); padding:9px 12px; cursor:pointer; }
+      .quiz-option.active { border-color:var(--brass); color:var(--brass-bright); background:rgba(212,178,106,.08); }
+      .quiz-result { display:none; margin-top:20px; border-top:1px solid var(--line); padding-top:18px; }
+      .quiz-result.show { display:block; }
+      .quiz-result h4 { margin:0 0 5px; font-family:'Cormorant Garamond',serif; font-size:27px; font-weight:500; color:var(--brass-bright); }
+      .quiz-result p { margin:0 0 12px; color:var(--parchment-dim); font-size:12px; line-height:1.6; }
+      .duo-selects { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+      .duo-total { margin-top:14px; font-size:13px; color:var(--parchment-dim); }
+      .guide-list { display:grid; gap:10px; margin-top:18px; }
+      .guide-item { display:flex; justify-content:space-between; gap:15px; border-bottom:1px solid var(--line); padding-bottom:10px; font-size:12px; }
+      .guide-item span:last-child { color:var(--brass-bright); text-align:right; }
+      .qty-control { display:flex; align-items:center; width:100%; border:1px solid var(--line); background:var(--ink-2); }
+      .qty-control button { width:44px; height:44px; border:0; background:transparent; color:var(--brass-bright); font-size:20px; cursor:pointer; }
+      .qty-control input { flex:1; min-width:0; text-align:center; border:0; background:transparent; color:var(--parchment); font:inherit; height:44px; }
+      .live-total { margin-top:7px; color:var(--brass-bright); font-size:12px; }
+      .tracking-box { max-width:760px; margin-top:28px; border:1px solid var(--line); background:var(--ink-2); padding:24px; }
+      .tracking-form { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; }
+      .tracking-result { margin-top:20px; display:none; }
+      .tracking-result.show { display:block; }
+      .tracking-id { font-size:11px; letter-spacing:.12em; color:var(--brass-bright); }
+      .tracking-status { margin:15px 0; display:grid; gap:7px; }
+      .track-step { border-left:2px solid var(--line); padding:9px 0 9px 14px; color:var(--parchment-dim); font-size:12px; }
+      .track-step.done, .track-step.current { border-left-color:var(--brass); color:var(--parchment); }
+      .track-step.current { color:var(--brass-bright); }
+      .confirmation-modal { position:fixed; inset:0; z-index:9998; display:none; align-items:center; justify-content:center; padding:18px; background:rgba(0,0,0,.78); }
+      .confirmation-modal.show { display:flex; }
+      .confirmation-dialog { width:min(560px,100%); border:1px solid var(--line); background:var(--ink-2); padding:28px; box-shadow:0 25px 80px rgba(0,0,0,.55); }
+      .confirmation-check { font-size:36px; color:var(--brass-bright); margin-bottom:8px; }
+      .confirmation-dialog h3 { font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:500; margin:0 0 6px; }
+      .confirmation-dialog p { color:var(--parchment-dim); font-size:13px; line-height:1.6; }
+      .confirmation-order-id { margin:18px 0; padding:15px; border:1px solid var(--line); color:var(--brass-bright); letter-spacing:.12em; text-align:center; }
+      .confirmation-actions { display:flex; gap:10px; flex-wrap:wrap; }
+      .wishlist-panel { display:none; margin-top:18px; border:1px solid var(--line); padding:16px; background:var(--ink-2); }
+      .wishlist-panel.show { display:block; }
+      .wishlist-items { display:flex; gap:8px; flex-wrap:wrap; }
+      .wishlist-item { border:1px solid var(--line); padding:8px 10px; color:var(--parchment); font-size:11px; cursor:pointer; background:transparent; }
+      @media (max-width:760px) {
+        .collection-tools { grid-template-columns:1fr; }
+        .feature-grid { grid-template-columns:1fr; }
+        .tracking-form { grid-template-columns:1fr; }
+        .duo-selects { grid-template-columns:1fr; }
+        .carousel-arrow.left { left:4px; }
+        .carousel-arrow.right { right:4px; }
+      }
       .carousel {
         display: flex;
         gap: 18px;
@@ -1017,6 +1132,22 @@
         <p class="sec-lede">
           Browse by category — swipe through each line to find your scent.
         </p>
+        <div class="collection-tools">
+          <input id="productSearch" class="collection-search" type="search" placeholder="Search a fragrance…" aria-label="Search fragrances">
+          <select id="profileFilter" class="collection-filter" aria-label="Filter by scent character">
+            <option value="all">All scent profiles</option>
+            <option value="fresh">Fresh</option>
+            <option value="sweet">Sweet</option>
+            <option value="woody">Woody</option>
+            <option value="floral">Floral</option>
+            <option value="warm">Warm</option>
+          </select>
+          <button type="button" class="ghost-btn" id="wishlistToggle">♡ Favorites</button>
+        </div>
+        <div class="wishlist-panel" id="wishlistPanel">
+          <div class="wishlist-items" id="wishlistItems"></div>
+          <p id="wishlistEmpty" class="note-small">No favorites yet. Tap the ♡ on a perfume card to save one.</p>
+        </div>
         <div class="tabs">
           <button class="tab active" data-cat="men">
             For Him <span class="count">(5)</span>
@@ -1043,6 +1174,96 @@
             aria-label="Next perfumes"
             title="Next"
           >&#10095;</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-section" id="scentFinder">
+      <div class="wrap">
+        <h2 class="sec-title">Find Your Scent</h2>
+        <p class="sec-lede">Answer three quick questions and get a fragrance suggestion based on your preferred vibe, occasion, and scent character.</p>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>1. Occasion</h3>
+            <div class="quiz-options" data-question="occasion">
+              <button class="quiz-option" data-value="day">Daytime</button>
+              <button class="quiz-option" data-value="night">Date / Night</button>
+              <button class="quiz-option" data-value="office">Office</button>
+              <button class="quiz-option" data-value="outdoor">Outdoor</button>
+            </div>
+          </div>
+          <div class="feature-card">
+            <h3>2. Character</h3>
+            <div class="quiz-options" data-question="profile">
+              <button class="quiz-option" data-value="fresh">Fresh</button>
+              <button class="quiz-option" data-value="sweet">Sweet</button>
+              <button class="quiz-option" data-value="woody">Woody</button>
+              <button class="quiz-option" data-value="floral">Floral</button>
+              <button class="quiz-option" data-value="warm">Warm</button>
+            </div>
+          </div>
+          <div class="feature-card">
+            <h3>3. Strength</h3>
+            <div class="quiz-options" data-question="strength">
+              <button class="quiz-option" data-value="subtle">Subtle</button>
+              <button class="quiz-option" data-value="moderate">Moderate</button>
+              <button class="quiz-option" data-value="bold">Bold</button>
+            </div>
+            <button type="button" class="btn-primary" id="findScentBtn" style="margin-top:16px">Find My Scent</button>
+            <div class="quiz-result" id="quizResult">
+              <h4 id="quizResultName"></h4>
+              <p id="quizResultText"></p>
+              <button type="button" class="ghost-btn" id="quizOrderBtn">Order This Scent</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-section">
+      <div class="wrap">
+        <h2 class="sec-title">Build Your Duo</h2>
+        <p class="sec-lede">Choose two fragrances for a simple two-bottle set. Current collection price is ₱430 per bottle.</p>
+        <div class="feature-card" style="margin-top:28px">
+          <div class="duo-selects">
+            <select id="duoOne" class="collection-filter"></select>
+            <select id="duoTwo" class="collection-filter"></select>
+          </div>
+          <div class="duo-total" id="duoTotal">2 bottles • ₱860</div>
+          <button type="button" class="btn-primary" id="duoOrderBtn" style="margin-top:14px">Order This Duo</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-section">
+      <div class="wrap">
+        <h2 class="sec-title">How to Choose</h2>
+        <p class="sec-lede">A quick guide if you already know the kind of scent you want.</p>
+        <div class="guide-list">
+          <div class="guide-item"><span>Fresh &amp; Clean</span><span>Aqua Di Gio • Sauvage</span></div>
+          <div class="guide-item"><span>Sweet &amp; Warm</span><span>Stronger With You • Black Opium</span></div>
+          <div class="guide-item"><span>Fresh &amp; Energetic</span><span>Eros • Invictus</span></div>
+          <div class="guide-item"><span>Floral &amp; Elegant</span><span>Miss Dior • Valaya • Eclat</span></div>
+          <div class="guide-item"><span>Modern &amp; Amber</span><span>Paradoxe • Black Opium</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-section" id="tracking">
+      <div class="wrap">
+        <h2 class="sec-title">Track Your Order</h2>
+        <p class="sec-lede">Enter the Order ID from your confirmation and the contact number used when ordering.</p>
+        <div class="tracking-box">
+          <div class="tracking-form">
+            <input id="trackingOrderId" class="collection-search" placeholder="AE-20260928-123456-123" autocomplete="off">
+            <input id="trackingContact" class="collection-search" placeholder="Contact number" autocomplete="tel">
+            <button type="button" class="btn-primary" id="trackOrderBtn">Track Order</button>
+          </div>
+          <div class="tracking-result" id="trackingResult">
+            <div class="tracking-id" id="trackingResultId"></div>
+            <div id="trackingResultSummary"></div>
+            <div class="tracking-status" id="trackingStatus"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -1196,13 +1417,14 @@
                 />
               </div>
               <div class="field">
-                <label for="qty">Quantity</label>
-                <select id="qty" name="qty">
-                  <option>1 bottle</option>
-                  <option>2 bottles</option>
-                  <option>3 bottles</option>
-                  <option>4+ bottles</option>
-                </select>
+                <label for="qtyNumber">Quantity</label>
+                <div class="qty-control">
+                  <button type="button" id="qtyMinus" aria-label="Decrease quantity">−</button>
+                  <input id="qtyNumber" type="number" min="1" max="10" value="1" inputmode="numeric" aria-label="Quantity">
+                  <button type="button" id="qtyPlus" aria-label="Increase quantity">+</button>
+                </div>
+                <input type="hidden" id="qty" name="qty" value="1 bottle">
+                <div class="live-total" id="liveTotal">Estimated total: ₱430</div>
               </div>
             </div>
             <div class="field">
@@ -1276,6 +1498,19 @@
       </div>
     </section>
 
+    <div class="confirmation-modal" id="confirmationModal" aria-hidden="true">
+      <div class="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmationTitle">
+        <div class="confirmation-check">✓</div>
+        <h3 id="confirmationTitle">Order Received</h3>
+        <p id="confirmationMessage">Thank you. Your order has been received and saved.</p>
+        <div class="confirmation-order-id" id="confirmationOrderId"></div>
+        <div class="confirmation-actions">
+          <button type="button" class="btn-primary" id="confirmationTrackBtn">Track Order</button>
+          <button type="button" class="ghost-btn" id="confirmationCloseBtn">Continue Shopping</button>
+        </div>
+      </div>
+    </div>
+
     <div class="fragrance-modal" id="fragranceModal" aria-hidden="true">
       <div
         class="fragrance-dialog"
@@ -1315,6 +1550,8 @@
             <h4>How to Apply</h4>
             <p id="fragranceApplication"></p>
           </div>
+          <div class="profile-bars" id="fragranceProfileBars"></div>
+          <div class="daynight" id="fragranceDayNight"></div>
           <div class="occasion-line" id="fragranceOccasion"></div>
           <p class="fragrance-note-disclaimer">
             Note: This fragrance profile is provided as a guide to the scent
@@ -1496,6 +1733,22 @@
         },
       ];
 
+      const PRODUCT_PRICE = 430;
+      const PRODUCT_META = {
+        sauvage: { profiles:["fresh","woody"], occasion:["day","office","night"], strength:"bold", longevity:8, projection:8, time:["day","night"], badges:["FEATURED"] },
+        invictus: { profiles:["fresh","sweet"], occasion:["day","outdoor"], strength:"moderate", longevity:7, projection:7, time:["day"], badges:[] },
+        strongerwithyou: { profiles:["sweet","warm"], occasion:["night"], strength:"bold", longevity:9, projection:8, time:["night"], badges:["FEATURED"] },
+        aquadigio: { profiles:["fresh","woody"], occasion:["day","office","outdoor"], strength:"moderate", longevity:7, projection:6, time:["day"], badges:[] },
+        eros: { profiles:["fresh","sweet","woody"], occasion:["night","outdoor"], strength:"bold", longevity:8, projection:9, time:["day","night"], badges:["FEATURED"] },
+        missdior: { profiles:["floral","sweet"], occasion:["day","office","night"], strength:"moderate", longevity:7, projection:6, time:["day","night"], badges:[] },
+        blackop: { profiles:["sweet","warm","floral"], occasion:["night"], strength:"bold", longevity:9, projection:8, time:["night"], badges:["FEATURED"] },
+        valaya: { profiles:["floral","fresh"], occasion:["day","office"], strength:"subtle", longevity:7, projection:6, time:["day"], badges:["SIGNATURE"] },
+        paradoxe: { profiles:["floral","warm"], occasion:["office","night"], strength:"moderate", longevity:8, projection:7, time:["day","night"], badges:["SIGNATURE"] },
+        eclat: { profiles:["floral","fresh"], occasion:["day","office"], strength:"subtle", longevity:6, projection:5, time:["day"], badges:[] }
+      };
+      const reviewStats = {};
+      let favorites = JSON.parse(localStorage.getItem("aeFavorites") || "[]");
+
       const carousel = document.getElementById("carousel");
       const carouselPrev = document.getElementById("carouselPrev");
       const carouselNext = document.getElementById("carouselNext");
@@ -1503,17 +1756,48 @@
       const tabs = document.querySelectorAll(".tab");
       let activeCat = "men";
 
+      const productSearch = document.getElementById("productSearch");
+      const profileFilter = document.getElementById("profileFilter");
+      const wishlistToggle = document.getElementById("wishlistToggle");
+      const wishlistPanel = document.getElementById("wishlistPanel");
+      const wishlistItems = document.getElementById("wishlistItems");
+      const wishlistEmpty = document.getElementById("wishlistEmpty");
+
+      function getVisibleProducts(cat) {
+        const query = (productSearch?.value || "").trim().toLowerCase();
+        const profile = profileFilter?.value || "all";
+        return PRODUCTS.filter((p) => {
+          if (p.cat !== cat) return false;
+          const meta = PRODUCT_META[p.id] || {};
+          const searchable = [p.name, p.desc, ...(p.topNotes || []), ...(p.heartNotes || []), ...(p.baseNotes || []), ...(meta.profiles || [])].join(" ").toLowerCase();
+          if (query && !searchable.includes(query)) return false;
+          if (profile !== "all" && !(meta.profiles || []).includes(profile)) return false;
+          return true;
+        });
+      }
+
       function renderCarousel(cat) {
         carousel.innerHTML = "";
-        PRODUCTS.filter((p) => p.cat === cat).forEach((p) => {
+        const products = getVisibleProducts(cat);
+        products.forEach((p) => {
           const card = document.createElement("div");
           card.className = "pcard";
+          const meta = PRODUCT_META[p.id] || {};
+          const stats = reviewStats[p.id] || { avg: 0, count: 0 };
+          const ratingText = stats.count ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>` : "No reviews yet";
+          const badges = (meta.badges || []).map(b => `<span class="product-badge">${b}</span>`).join("");
+          const saved = favorites.includes(p.id);
           card.innerHTML = `
-        <div class="pimg"><img src="${p.img}" alt="${p.name}"></div>
+        <div class="pimg">
+          <div class="product-badges">${badges}</div>
+          <button type="button" class="wishlist-btn ${saved ? "active" : ""}" data-wishlist-id="${p.id}" aria-label="${saved ? "Remove" : "Add"} ${p.name} ${saved ? "from" : "to"} favorites">${saved ? "♥" : "♡"}</button>
+          <img src="${p.img}" alt="${p.name}" loading="lazy">
+        </div>
         <div class="pbody">
           <span class="ptag">${cat === "men" ? "FOR HIM" : "FOR HER"}</span>
           <h4>${p.name}</h4>
           <p>${p.desc}</p>
+          <div class="product-rating">${ratingText}</div>
           <div class="pfoot">
             <span class="pprice">&#8369;430</span>
             <div class="pactions">
@@ -1524,12 +1808,15 @@
         </div>`;
           carousel.appendChild(card);
         });
+        if (!products.length) {
+          carousel.innerHTML = '<div class="summary-empty" style="min-width:100%">No fragrances match your search or filter.</div>';
+        }
+        requestAnimationFrame(updateCarouselArrows);
       }
 
       function updateCarouselArrows() {
         const maxScroll = carousel.scrollWidth - carousel.clientWidth;
         const hasOverflow = maxScroll > 2;
-
         carouselPrev.disabled = !hasOverflow || carousel.scrollLeft <= 2;
         carouselNext.disabled = !hasOverflow || carousel.scrollLeft >= maxScroll - 2;
       }
@@ -1538,17 +1825,50 @@
         const card = carousel.querySelector(".pcard");
         const gap = 18;
         const amount = card ? card.getBoundingClientRect().width + gap : 248;
+        carousel.scrollBy({ left: direction * amount, behavior: "smooth" });
+      }
 
-        carousel.scrollBy({
-          left: direction * amount,
-          behavior: "smooth",
+      function updateWishlistPanel() {
+        wishlistItems.innerHTML = "";
+        const savedProducts = PRODUCTS.filter(p => favorites.includes(p.id));
+        wishlistEmpty.style.display = savedProducts.length ? "none" : "block";
+        savedProducts.forEach(p => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "wishlist-item";
+          b.textContent = p.name;
+          b.dataset.wishlistJump = p.id;
+          wishlistItems.appendChild(b);
         });
+      }
+
+      function toggleFavorite(id) {
+        favorites = favorites.includes(id) ? favorites.filter(x => x !== id) : [...favorites, id];
+        localStorage.setItem("aeFavorites", JSON.stringify(favorites));
+        updateWishlistPanel();
+        renderCarousel(activeCat);
       }
 
       carouselPrev.addEventListener("click", () => scrollCarousel(-1));
       carouselNext.addEventListener("click", () => scrollCarousel(1));
       carousel.addEventListener("scroll", updateCarouselArrows, { passive: true });
       window.addEventListener("resize", updateCarouselArrows);
+      productSearch.addEventListener("input", () => renderCarousel(activeCat));
+      profileFilter.addEventListener("change", () => renderCarousel(activeCat));
+      wishlistToggle.addEventListener("click", () => {
+        wishlistPanel.classList.toggle("show");
+        updateWishlistPanel();
+      });
+      wishlistItems.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-wishlist-jump]");
+        if (!b) return;
+        const p = PRODUCTS.find(x => x.id === b.dataset.wishlistJump);
+        if (!p) return;
+        activeCat = p.cat;
+        tabs.forEach(t => t.classList.toggle("active", t.dataset.cat === activeCat));
+        renderCarousel(activeCat);
+        document.getElementById("collection").scrollIntoView({behavior:"smooth"});
+      });
 
       function renderScentOptions() {
         scentSelect.innerHTML = PRODUCTS.map(
@@ -1578,6 +1898,8 @@
         "fragranceApplication",
       );
       const fragranceOccasion = document.getElementById("fragranceOccasion");
+      const fragranceProfileBars = document.getElementById("fragranceProfileBars");
+      const fragranceDayNight = document.getElementById("fragranceDayNight");
 
       function openFragranceDetails(productId) {
         const product = PRODUCTS.find((p) => p.id === productId);
@@ -1599,6 +1921,16 @@
         fragranceOccasion.textContent = product.occasion
           ? "Best suited for: " + product.occasion
           : "";
+        const meta = PRODUCT_META[product.id] || {};
+        const scores = {
+          fresh: (meta.profiles || []).includes("fresh") ? 9 : 3,
+          sweet: (meta.profiles || []).includes("sweet") ? 9 : 3,
+          woody: (meta.profiles || []).includes("woody") ? 9 : 3,
+          floral: (meta.profiles || []).includes("floral") ? 9 : 3,
+          warm: (meta.profiles || []).includes("warm") ? 9 : 3
+        };
+        fragranceProfileBars.innerHTML = Object.entries(scores).map(([label, score]) => `<div class="profile-row"><span>${label[0].toUpperCase()+label.slice(1)}</span><span class="profile-track"><span class="profile-fill" style="width:${score*10}%"></span></span><span>${score}/10</span></div>`).join("") + `<div class="profile-row"><span>Longevity</span><span class="profile-track"><span class="profile-fill" style="width:${(meta.longevity||7)*10}%"></span></span><span>${meta.longevity||7}/10</span></div><div class="profile-row"><span>Projection</span><span class="profile-track"><span class="profile-fill" style="width:${(meta.projection||7)*10}%"></span></span><span>${meta.projection||7}/10</span></div>`;
+        fragranceDayNight.innerHTML = `<span>☀ Day ${meta.time?.includes("day") ? "✓" : ""}</span><span>🌙 Night ${meta.time?.includes("night") ? "✓" : ""}</span>`;
 
         fragranceModal.classList.add("show");
         fragranceModal.setAttribute("aria-hidden", "false");
@@ -1631,12 +1963,13 @@
       });
 
       carousel.addEventListener("click", (e) => {
+        const wish = e.target.closest(".wishlist-btn");
+        if (wish) { toggleFavorite(wish.dataset.wishlistId); return; }
         const detailsBtn = e.target.closest(".pdetails");
         if (detailsBtn) {
           openFragranceDetails(detailsBtn.dataset.detailsId);
           return;
         }
-
         const btn = e.target.closest(".porder");
         if (!btn) return;
         scentSelect.value = btn.dataset.id;
@@ -1644,6 +1977,7 @@
       });
 
       renderScentOptions();
+      updateWishlistPanel();
       renderCarousel(activeCat);
       requestAnimationFrame(updateCarouselArrows);
 
@@ -1697,6 +2031,16 @@
 
       function renderReviews(reviews) {
         reviewsLoading.style.display = "none";
+        Object.keys(reviewStats).forEach(k => delete reviewStats[k]);
+        (reviews || []).forEach(r => {
+          const p = PRODUCTS.find(x => x.name.toLowerCase() === String(r.scent || "").toLowerCase());
+          if (!p) return;
+          reviewStats[p.id] ||= {sum:0,count:0,avg:0};
+          reviewStats[p.id].sum += Number(r.rating) || 0;
+          reviewStats[p.id].count += 1;
+          reviewStats[p.id].avg = reviewStats[p.id].sum / reviewStats[p.id].count;
+        });
+        renderCarousel(activeCat);
         reviewsCarousel.innerHTML = "";
 
         if (!reviews || !reviews.length) {
@@ -1911,12 +2255,75 @@
 
       loadReviews();
 
+      // FIND YOUR SCENT QUIZ
+      const quizAnswers = {};
+      document.querySelectorAll(".quiz-options").forEach(group => {
+        group.addEventListener("click", e => {
+          const btn = e.target.closest(".quiz-option");
+          if (!btn) return;
+          const q = group.dataset.question;
+          quizAnswers[q] = btn.dataset.value;
+          group.querySelectorAll(".quiz-option").forEach(b => b.classList.toggle("active", b === btn));
+        });
+      });
+      document.getElementById("findScentBtn").addEventListener("click", () => {
+        const scores = PRODUCTS.map(p => {
+          const meta = PRODUCT_META[p.id] || {};
+          let score = 0;
+          if (quizAnswers.profile && (meta.profiles || []).includes(quizAnswers.profile)) score += 4;
+          if (quizAnswers.occasion && (meta.occasion || []).includes(quizAnswers.occasion)) score += 3;
+          if (quizAnswers.strength && meta.strength === quizAnswers.strength) score += 2;
+          return {p, score};
+        }).sort((a,b) => b.score-a.score);
+        const winner = scores[0]?.p || PRODUCTS[0];
+        document.getElementById("quizResultName").textContent = winner.name;
+        document.getElementById("quizResultText").textContent = winner.desc + " Best suited for: " + (winner.occasion || "versatile wear") + ".";
+        document.getElementById("quizResult").classList.add("show");
+        document.getElementById("quizOrderBtn").dataset.id = winner.id;
+      });
+      document.getElementById("quizOrderBtn").addEventListener("click", e => {
+        scentSelect.value = e.currentTarget.dataset.id;
+        document.getElementById("order").scrollIntoView({behavior:"smooth"});
+      });
+
+      // BUILD YOUR DUO
+      const duoOne = document.getElementById("duoOne");
+      const duoTwo = document.getElementById("duoTwo");
+      const duoTotal = document.getElementById("duoTotal");
+      [duoOne, duoTwo].forEach(select => {
+        select.innerHTML = PRODUCTS.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+        select.addEventListener("change", () => duoTotal.textContent = `2 bottles • ₱${(PRODUCT_PRICE * 2).toLocaleString()}`);
+      });
+      document.getElementById("duoOrderBtn").addEventListener("click", () => {
+        const names = [duoOne.value, duoTwo.value];
+        scentSelect.value = names[0];
+        document.getElementById("qtyNumber").value = 2;
+        syncQuantity();
+        document.getElementById("notes").value = "Duo: " + names.map(id => PRODUCTS.find(p=>p.id===id)?.name || id).join(" + ");
+        document.getElementById("order").scrollIntoView({behavior:"smooth"});
+      });
+
       // ORDER FORM
       const form = document.getElementById("orderForm");
       const summaryEmpty = document.getElementById("summaryEmpty");
       const summaryLines = document.getElementById("summaryLines");
       const summaryActions = document.getElementById("summaryActions");
       const copyBtn = document.getElementById("copyBtn");
+      const qtyNumber = document.getElementById("qtyNumber");
+      const qtyHidden = document.getElementById("qty");
+      const liveTotal = document.getElementById("liveTotal");
+
+      function syncQuantity() {
+        let n = Math.max(1, Math.min(10, parseInt(qtyNumber.value || "1", 10)));
+        qtyNumber.value = n;
+        qtyHidden.value = n + (n === 1 ? " bottle" : " bottles");
+        liveTotal.textContent = "Estimated total: ₱" + (n * PRODUCT_PRICE).toLocaleString();
+        return n;
+      }
+      document.getElementById("qtyMinus").addEventListener("click", () => { qtyNumber.value = Number(qtyNumber.value || 1) - 1; syncQuantity(); });
+      document.getElementById("qtyPlus").addEventListener("click", () => { qtyNumber.value = Number(qtyNumber.value || 1) + 1; syncQuantity(); });
+      qtyNumber.addEventListener("input", syncQuantity);
+      syncQuantity();
 
       function showSubmitStatus(message, type) {
         const status = document.getElementById("submitStatus");
@@ -1932,6 +2339,8 @@
         const scentName =
           PRODUCTS.find((p) => p.id === data.get("scent"))?.name ||
           data.get("scent");
+        const quantityNumber = syncQuantity();
+        const orderTotal = quantityNumber * PRODUCT_PRICE;
 
         const lines = [
           "AURA & ESSENCE — Order",
@@ -1945,6 +2354,7 @@
           "Notes: " + (data.get("notes") || "—"),
           "—————————————",
           "Price per bottle: ₱430",
+          "Estimated total: ₱" + orderTotal.toLocaleString(),
         ].join("\n");
 
         // Show the order summary immediately.
@@ -2002,7 +2412,13 @@
             "Order saved successfully. We received your order and will contact you soon.",
             "success",
           );
+          document.getElementById("confirmationOrderId").textContent = result.orderId || "ORDER RECEIVED";
+          document.getElementById("confirmationMessage").textContent = `Thank you, ${data.get("fullname") || "customer"}. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
+          document.getElementById("confirmationModal").classList.add("show");
+          document.getElementById("confirmationModal").setAttribute("aria-hidden","false");
           form.reset();
+          qtyNumber.value = 1;
+          syncQuantity();
           renderScentOptions();
         } catch (err) {
           console.error(err);
@@ -2016,6 +2432,49 @@
         }
 
         summaryLines.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      const confirmationModal = document.getElementById("confirmationModal");
+      document.getElementById("confirmationCloseBtn").addEventListener("click", () => {
+        confirmationModal.classList.remove("show");
+        confirmationModal.setAttribute("aria-hidden","true");
+      });
+      document.getElementById("confirmationTrackBtn").addEventListener("click", () => {
+        const id = document.getElementById("confirmationOrderId").textContent.trim();
+        document.getElementById("trackingOrderId").value = id;
+        confirmationModal.classList.remove("show");
+        document.getElementById("tracking").scrollIntoView({behavior:"smooth"});
+      });
+      confirmationModal.addEventListener("click", e => { if (e.target === confirmationModal) document.getElementById("confirmationCloseBtn").click(); });
+
+      const trackingResult = document.getElementById("trackingResult");
+      const trackingStatus = document.getElementById("trackingStatus");
+      const trackingResultId = document.getElementById("trackingResultId");
+      const trackingResultSummary = document.getElementById("trackingResultSummary");
+      const trackSteps = ["New","Confirmed","Preparing","Out for Delivery","Completed"];
+      function renderTracking(data) {
+        const status = data.status || "New";
+        const current = Math.max(0, trackSteps.findIndex(x => x.toLowerCase() === status.toLowerCase()));
+        trackingResultId.textContent = data.orderId || "ORDER";
+        trackingResultSummary.innerHTML = `<p style="color:var(--parchment-dim);font-size:12px;line-height:1.6;margin:12px 0">${data.scent || "Order"} • ${data.qty || ""} • ₱${Number(data.total || 0).toLocaleString()}<br>Customer: ${data.fullname || ""}</p>`;
+        trackingStatus.innerHTML = trackSteps.map((step,i) => `<div class="track-step ${i < current ? "done" : i === current ? "current" : ""}">${i < current ? "✓ " : i === current ? "● " : "○ "}${step}</div>`).join("");
+        trackingResult.classList.add("show");
+      }
+      function showTrackingError(msg) { trackingResult.classList.add("show"); trackingResultId.textContent = "NOT FOUND"; trackingResultSummary.innerHTML = `<p style="color:#e8b0b0">${msg}</p>`; trackingStatus.innerHTML=""; }
+      document.getElementById("trackOrderBtn").addEventListener("click", () => {
+        const orderId = document.getElementById("trackingOrderId").value.trim();
+        const contact = document.getElementById("trackingContact").value.trim();
+        if (!orderId || !contact) { showTrackingError("Please enter both your Order ID and contact number."); return; }
+        const callbackName = "__aeTrack_" + Date.now();
+        window[callbackName] = data => {
+          try { if (!data?.success) throw new Error(data?.message || "Order not found."); renderTracking(data); }
+          catch(e) { showTrackingError(e.message || "Order not found."); }
+          finally { delete window[callbackName]; script.remove(); }
+        };
+        const script = document.createElement("script");
+        script.src = GOOGLE_SHEETS_WEB_APP_URL + (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") + "action=trackOrder&orderId=" + encodeURIComponent(orderId) + "&contact=" + encodeURIComponent(contact) + "&callback=" + encodeURIComponent(callbackName);
+        script.onerror = () => { showTrackingError("The tracking service is temporarily unavailable."); delete window[callbackName]; script.remove(); };
+        document.body.appendChild(script);
       });
 
       copyBtn.addEventListener("click", async function () {
