@@ -1713,170 +1713,91 @@ document.querySelectorAll(".quiz-options").forEach((group) => {
 // FIND SCENT
 // ------------------------------------------------------------
 
-document
-  .getElementById("findScentBtn")
-  .addEventListener("click", () => {
+document.getElementById("findScentBtn").addEventListener("click", () => {
+  const scores = catalog
+    .all()
+    .map((p) => {
+      const meta = PRODUCT_META[p.id] || {};
 
-    const selectedProfiles =
-      Array.isArray(quizAnswers.profile)
-        ? quizAnswers.profile
-        : [];
+      let score = 0;
 
+      // ------------------------------------------------
+      // PROFILE MATCH
+      // ------------------------------------------------
 
-    const selectedOccasion =
-      quizAnswers.occasion || "";
+      const productProfiles = Array.isArray(meta.profiles)
+        ? meta.profiles.map((profile) => String(profile).trim().toLowerCase())
+        : String(meta.profiles || "")
+            .split(",")
+            .map((profile) => profile.trim().toLowerCase())
+            .filter(Boolean);
 
+      if (
+        quizAnswers.profile &&
+        productProfiles.includes(
+          String(quizAnswers.profile).trim().toLowerCase(),
+        )
+      ) {
+        score += 4;
+      }
 
-    const selectedStrength =
-      quizAnswers.strength || "";
+      // ------------------------------------------------
+      // OCCASION MATCH
+      // ------------------------------------------------
 
+      const productOccasions = Array.isArray(meta.occasion)
+        ? meta.occasion.map((value) => String(value).trim().toLowerCase())
+        : String(meta.occasion || "")
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter(Boolean);
 
-    const scores = catalog
-      .all()
-      .map(product => {
+      if (
+        quizAnswers.occasion &&
+        productOccasions.includes(
+          String(quizAnswers.occasion).trim().toLowerCase(),
+        )
+      ) {
+        score += 3;
+      }
 
-        const meta =
-          PRODUCT_META[product.id] || {};
+      // ------------------------------------------------
+      // STRENGTH MATCH
+      // ------------------------------------------------
 
+      const productStrength = normalizeStrength(meta.strength);
 
-        let score = 0;
+      const selectedStrength = normalizeStrength(quizAnswers.strength);
 
+      if (quizAnswers.strength && productStrength === selectedStrength) {
+        score += 2;
+      }
 
-        // =================================================
-        // CHARACTER MATCH
-        // =================================================
+      return {
+        p,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
 
-        const productProfiles =
-          Array.isArray(meta.profiles)
-            ? meta.profiles
-                .map(profile =>
-                  String(profile)
-                    .trim()
-                    .toLowerCase()
-                )
-            : String(meta.profiles || "")
-                .split(",")
-                .map(profile =>
-                  profile
-                    .trim()
-                    .toLowerCase()
-                )
-                .filter(Boolean);
+  const winner = scores[0]?.p || catalog.all()[0];
 
+  if (!winner) {
+    return;
+  }
 
-        const profileMatch =
-          selectedProfiles.some(profile =>
-            productProfiles.includes(profile)
-          );
+  document.getElementById("quizResultName").textContent = winner.name;
 
+  document.getElementById("quizResultText").textContent =
+    winner.desc +
+    " Best suited for: " +
+    (winner.occasion || "versatile wear") +
+    ".";
 
-        if (profileMatch) {
+  document.getElementById("quizResult").classList.add("show");
 
-          score += 4;
-
-        }
-
-
-        // =================================================
-        // OCCASION MATCH
-        // =================================================
-
-        const productOccasions =
-          Array.isArray(meta.occasion)
-            ? meta.occasion
-            : String(meta.occasion || "")
-                .split(",")
-                .map(value =>
-                  value
-                    .trim()
-                    .toLowerCase()
-                )
-                .filter(Boolean);
-
-
-        if (
-          selectedOccasion &&
-          productOccasions.includes(
-            selectedOccasion.toLowerCase()
-          )
-        ) {
-
-          score += 3;
-
-        }
-
-
-        // =================================================
-        // STRENGTH MATCH
-        // =================================================
-
-        if (
-          selectedStrength &&
-          String(meta.strength || "")
-            .trim()
-            .toLowerCase() ===
-            selectedStrength
-              .trim()
-              .toLowerCase()
-        ) {
-
-          score += 2;
-
-        }
-
-
-        return {
-          product,
-          score
-        };
-
-      })
-
-
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      );
-
-
-    // =====================================================
-    // GET RESULT
-    // =====================================================
-
-    const winner =
-      scores[0]?.product ||
-      catalog.all()[0];
-
-
-    document
-      .getElementById("quizResultName")
-      .textContent =
-      winner.name;
-
-
-    document
-      .getElementById("quizResultText")
-      .textContent =
-      winner.desc +
-      " Best suited for: " +
-      (
-        winner.occasion ||
-        "versatile wear"
-      ) +
-      ".";
-
-
-    document
-      .getElementById("quizResult")
-      .classList.add("show");
-
-
-    document
-      .getElementById("quizOrderBtn")
-      .dataset.id =
-      winner.id;
-
-  });
+  document.getElementById("quizOrderBtn").dataset.id = winner.id;
+});
 
 // ============================================================
 // QUIZ ORDER BUTTON
