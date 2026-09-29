@@ -1652,35 +1652,89 @@ const quizAnswers = {};
 // QUIZ OPTION SELECTION
 // ------------------------------------------------------------
 
-document.querySelectorAll(".quiz-options").forEach((group) => {
-  group.addEventListener("click", (e) => {
+const quizAnswers = {
+  occasion: "",
+  profile: [],
+  strength: ""
+};
+
+
+document.querySelectorAll(".quiz-options").forEach(group => {
+
+  group.addEventListener("click", e => {
+
     const btn = e.target.closest(".quiz-option");
 
-    if (!btn) {
+    if (!btn) return;
+
+    const question =
+      group.dataset.question;
+
+
+    // =====================================================
+    // CHARACTER = MULTI SELECT
+    // =====================================================
+
+    if (question === "profile") {
+
+      const value =
+        String(btn.dataset.value || "")
+          .trim()
+          .toLowerCase();
+
+
+      if (!Array.isArray(quizAnswers.profile)) {
+        quizAnswers.profile = [];
+      }
+
+
+      const index =
+        quizAnswers.profile.indexOf(value);
+
+
+      // Already selected
+      if (index !== -1) {
+
+        quizAnswers.profile.splice(index, 1);
+
+        btn.classList.remove("active");
+
+      }
+
+      // Not selected yet
+      else {
+
+        quizAnswers.profile.push(value);
+
+        btn.classList.add("active");
+
+      }
+
       return;
     }
 
-    const q = group.dataset.question;
 
-    let value = btn.dataset.value || "";
+    // =====================================================
+    // OCCASION / STRENGTH = SINGLE SELECT
+    // =====================================================
 
-    // Strength values are normalized
-    // to:
-    //
-    // subtle
-    // moderate
-    // bold
+    quizAnswers[question] =
+      btn.dataset.value;
 
-    if (q === "strength") {
-      value = normalizeStrength(value);
-    }
-
-    quizAnswers[q] = value;
 
     group
       .querySelectorAll(".quiz-option")
-      .forEach((b) => b.classList.toggle("active", b === btn));
+      .forEach(option => {
+
+        option.classList.toggle(
+          "active",
+          option === btn
+        );
+
+      });
+
   });
+
 });
 
 // ------------------------------------------------------------
