@@ -1411,165 +1411,216 @@ function normalizeStrength(
 // Only Longevity + Strength use bars.
 // ============================================================
 
-function openFragranceDetails(productId) {
-  const product = catalog.find(productId);
+function openFragranceDetails(
+  productId
+) {
 
-  if (!product) return;
+  const product =
+    catalog.find(
+      productId
+    );
 
-  // ============================================
-  // BASIC PRODUCT INFORMATION
-  // ============================================
+  if (!product) {
+    return;
+  }
 
-  fragranceModalTitle.textContent = product.name;
+
+  fragranceModalTitle.textContent =
+    product.name;
+
 
   fragranceModalCategory.textContent =
     product.cat === "men"
       ? "For Him • Extrait de Parfum"
       : "For Her • Extrait de Parfum";
 
+
   fragranceModalDescription.textContent =
-    product.descLong || product.desc || "";
+    product.descLong ||
+    product.desc ||
+    "";
+
 
   fragranceTopNotes.textContent =
-    (product.topNotes || []).join(" • ");
+    Array.isArray(
+      product.topNotes
+    )
+      ? product.topNotes.join(
+          " • "
+        )
+      : String(
+          product.topNotes ||
+          ""
+        );
+
 
   fragranceHeartNotes.textContent =
-    (product.heartNotes || []).join(" • ");
+    Array.isArray(
+      product.heartNotes
+    )
+      ? product.heartNotes.join(
+          " • "
+        )
+      : String(
+          product.heartNotes ||
+          ""
+        );
+
 
   fragranceBaseNotes.textContent =
-    (product.baseNotes || []).join(" • ");
+    Array.isArray(
+      product.baseNotes
+    )
+      ? product.baseNotes.join(
+          " • "
+        )
+      : String(
+          product.baseNotes ||
+          ""
+        );
+
 
   fragranceApplication.textContent =
-    product.application || "";
+    product.application ||
+    "";
+
 
   fragranceOccasion.textContent =
     product.occasion
-      ? "Best suited for: " + product.occasion
+      ? "Best suited for: " +
+        product.occasion
       : "";
 
-  // ============================================
-  // ADMIN-MANAGED PROFILE DATA
-  // ============================================
 
-  const meta = PRODUCT_META[product.id] || {};
+  const meta =
+    PRODUCT_META[
+      product.id
+    ] || {};
 
-  /*
-   * IMPORTANT:
-   *
-   * profiles comes directly from:
-   *
-   * Admin
-   *   ↓
-   * Google Sheet
-   *   ↓
-   * Apps Script
-   *   ↓
-   * app.js
-   *
-   * Example:
-   *
-   * "Fresh"
-   *
-   * becomes:
-   *
-   * ["Fresh"]
-   *
-   * Example:
-   *
-   * "Fresh, Woody, Amber"
-   *
-   * becomes:
-   *
-   * ["Fresh", "Woody", "Amber"]
-   */
 
-  let profiles = Array.isArray(meta.profiles)
-    ? meta.profiles
-    : [];
+  // ----------------------------------------------------------
+  // PROFILES
+  //
+  // Admin example:
+  // Fresh, Spicy, Citrus, Amber, Woody
+  //
+  // These are displayed as text tags.
+  // ----------------------------------------------------------
 
-  // Clean the profile values.
-  profiles = profiles
-    .map(profile => String(profile).trim())
-    .filter(Boolean);
+  let profiles =
+    [];
 
-  // ============================================
-  // PROFILE DISPLAY
-  // ============================================
 
-  const profileHTML = profiles.length
-    ? profiles
-        .map(profile => `
+  if (
+    Array.isArray(
+      meta.profiles
+    )
+  ) {
+
+    profiles =
+      meta.profiles
+        .map(
+          profile =>
+            String(
+              profile
+            ).trim()
+        )
+        .filter(
+          Boolean
+        );
+
+  } else if (
+    typeof meta.profiles ===
+      "string"
+  ) {
+
+    profiles =
+      meta.profiles
+        .split(",")
+        .map(
+          profile =>
+            profile.trim()
+        )
+        .filter(
+          Boolean
+        );
+
+  }
+
+
+  const profileText =
+    profiles.length
+
+      ? profiles
+          .map(
+            profile =>
+              `<span class="profile-tag">${escapeHTML(
+                profile
+              )}</span>`
+          )
+          .join("")
+
+      : `
           <span class="profile-tag">
-            ${escapeText(profile)}
+            No profile listed
           </span>
-        `)
-        .join("")
-    : `
-        <span class="profile-tag">
-          No profile listed
-        </span>
-      `;
+        `;
 
-  // ============================================
-  // LONGEVITY / PROJECTION
-  // ============================================
 
-  const longevity = Math.max(
-    1,
-    Math.min(
-      10,
-      Number(meta.longevity) || 7
-    )
-  );
+  // ----------------------------------------------------------
+  // LONGEVITY
+  // ----------------------------------------------------------
 
-  const projection = Math.max(
-    1,
-    Math.min(
-      10,
-      Number(meta.projection) || 7
-    )
-  );
+  const longevity =
+    Math.max(
+      0,
+      Math.min(
+        10,
+        Number(
+          meta.longevity
+        ) || 7
+      )
+    );
 
-  // ============================================
+
+  // ----------------------------------------------------------
   // STRENGTH
-  // ============================================
+  // ----------------------------------------------------------
 
-  let strength = String(
-    meta.strength || "moderate"
-  )
-    .trim()
-    .toLowerCase();
+  const strengthKey =
+    normalizeStrength(
+      meta.strength
+    );
 
-  /*
-   * Backward compatibility:
-   *
-   * Old values:
-   * light
-   * moderate
-   * strong
-   *
-   * New values:
-   * subtle
-   * moderate
-   * bold
-   */
 
-  const strengthMap = {
-    light: "Subtle",
-    subtle: "Subtle",
+  const strengthScore =
+    {
+      subtle: 4,
+      moderate: 7,
+      bold: 10
+    }[
+      strengthKey
+    ];
 
-    moderate: "Moderate",
 
-    strong: "Bold",
-    bold: "Bold"
-  };
+  const strengthLabel =
+    {
+      subtle:
+        "Subtle",
 
-  strength =
-    strengthMap[strength] || "Moderate";
+      moderate:
+        "Moderate",
 
-  // ============================================
-  // RENDER PROFILE DETAILS
-  // ============================================
+      bold:
+        "Bold"
+    }[
+      strengthKey
+    ];
+
+
+  // ----------------------------------------------------------
+  // FINAL PROFILE DISPLAY
+  // ----------------------------------------------------------
 
   fragranceProfileBars.innerHTML = `
 
@@ -1580,20 +1631,25 @@ function openFragranceDetails(productId) {
       </div>
 
       <div class="profile-tags">
-        ${profileHTML}
+        ${profileText}
       </div>
 
     </div>
 
-    <div class="profile-stat">
 
-      <span>Longevity</span>
+    <div class="profile-row">
+
+      <span>
+        Longevity
+      </span>
 
       <span class="profile-track">
+
         <span
           class="profile-fill"
           style="width:${longevity * 10}%"
         ></span>
+
       </span>
 
       <span>
@@ -1602,78 +1658,101 @@ function openFragranceDetails(productId) {
 
     </div>
 
-    <div class="profile-stat">
 
-      <span>Projection</span>
+    <div class="profile-row">
+
+      <span>
+        Strength
+      </span>
 
       <span class="profile-track">
+
         <span
           class="profile-fill"
-          style="width:${projection * 10}%"
+          style="width:${strengthScore * 10}%"
         ></span>
+
       </span>
 
       <span>
-        ${projection}/10
-      </span>
-
-    </div>
-
-    <div class="profile-stat">
-
-      <span>Strength</span>
-
-      <span class="profile-track">
-        <span
-          class="profile-fill"
-          style="width:${
-            strength === "Subtle"
-              ? 33
-              : strength === "Moderate"
-                ? 66
-                : 100
-          }%"
-        ></span>
-      </span>
-
-      <span>
-        ${strength}
+        ${strengthLabel}
       </span>
 
     </div>
 
   `;
 
-  // ============================================
-  // DAY / NIGHT
-  // ============================================
 
-  const time = Array.isArray(meta.time)
-    ? meta.time
-    : [];
+  // ----------------------------------------------------------
+  // DAY / NIGHT
+  // ----------------------------------------------------------
+
+  const time =
+    Array.isArray(
+      meta.time
+    )
+
+      ? meta.time.map(
+          value =>
+            String(
+              value
+            ).toLowerCase()
+        )
+
+      : String(
+          meta.time ||
+          ""
+        )
+          .split(",")
+          .map(
+            value =>
+              value
+                .trim()
+                .toLowerCase()
+          )
+          .filter(
+            Boolean
+          );
+
 
   fragranceDayNight.innerHTML = `
+
     <span>
-      ☀ Day ${time.includes("day") ? "✓" : ""}
+      ☀ Day
+      ${
+        time.includes(
+          "day"
+        )
+          ? "✓"
+          : ""
+      }
     </span>
 
     <span>
-      🌙 Night ${time.includes("night") ? "✓" : ""}
+      🌙 Night
+      ${
+        time.includes(
+          "night"
+        )
+          ? "✓"
+          : ""
+      }
     </span>
+
   `;
 
-  // ============================================
-  // OPEN MODAL
-  // ============================================
 
-  fragranceModal.classList.add("show");
+  fragranceModal.classList.add(
+    "show"
+  );
 
   fragranceModal.setAttribute(
     "aria-hidden",
     "false"
   );
 
-  document.body.style.overflow = "hidden";
+  document.body.style.overflow =
+    "hidden";
 }
 
 
@@ -1987,48 +2066,72 @@ async function loadManagedProducts() {
         }
 
 
-        PRODUCT_META[remote.id] = Object.assign(
-  PRODUCT_META[remote.id] || {},
-  {
-    profiles: Array.isArray(remote.profiles)
-      ? remote.profiles
-      : String(remote.profiles || "")
-          .split(",")
-          .map(x => x.trim())
-          .filter(Boolean),
+        PRODUCT_META[
+          remote.id
+        ] =
+          Object.assign(
+            PRODUCT_META[
+              remote.id
+            ] || {},
 
-    occasion:
-      remote.occasion || "",
+            {
 
-    strength:
-      remote.strength || "moderate",
+              profiles:
+                remote.profiles ||
+                [],
 
-    longevity:
-      Number(remote.longevity) || 7,
+              occasion:
+                remote.occasion ||
+                "",
 
-    projection:
-      Number(remote.projection) || 7,
 
-    time:
-      Array.isArray(remote.time)
-        ? remote.time
-        : String(remote.time || "")
-            .split(",")
-            .map(x => x.trim().toLowerCase())
-            .filter(Boolean),
+              // Convert old values:
+              // light  -> subtle
+              // strong -> bold
 
-    badges:
-      Array.isArray(remote.badges)
-        ? remote.badges
-        : String(remote.badges || "")
-            .split(",")
-            .map(x => x.trim())
-            .filter(Boolean),
+              strength:
+                (
+                  {
+                    light:
+                      "subtle",
 
-    sortOrder:
-      Number(remote.sortOrder) || 0
-  }
-);
+                    strong:
+                      "bold"
+                  }[
+                    String(
+                      remote.strength ||
+                      "moderate"
+                    ).toLowerCase()
+                  ] ||
+                  String(
+                    remote.strength ||
+                    "moderate"
+                  )
+                ).toLowerCase(),
+
+
+              longevity:
+                remote.longevity ||
+                7,
+
+              projection:
+                remote.projection ||
+                7,
+
+              time:
+                remote.time ||
+                [],
+
+              badges:
+                remote.badges ||
+                [],
+
+              sortOrder:
+                remote.sortOrder ||
+                0
+
+            }
+          );
 
       }
     );
