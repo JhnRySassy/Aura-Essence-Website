@@ -433,7 +433,9 @@ const wishlistEmpty = document.getElementById("wishlistEmpty");
 function getVisibleProducts(cat) {
   const query = (productSearch?.value || "").trim().toLowerCase();
 
-  const profile = profileFilter?.value || "all";
+  const selectedProfile = String(profileFilter?.value || "all")
+    .trim()
+    .toLowerCase();
 
   return catalog
     .all()
@@ -448,13 +450,28 @@ function getVisibleProducts(cat) {
 
       const meta = PRODUCT_META[p.id] || {};
 
+      // Get product profiles
+      let productProfiles = [];
+
+      if (Array.isArray(meta.profiles)) {
+        productProfiles = meta.profiles;
+      } else if (typeof meta.profiles === "string") {
+        productProfiles = meta.profiles.split(",");
+      }
+
+      // Normalize profiles
+      productProfiles = productProfiles
+        .map((profile) => String(profile).trim().toLowerCase())
+        .filter(Boolean);
+
+      // Search
       const searchable = [
         p.name,
         p.desc,
         ...(p.topNotes || []),
         ...(p.heartNotes || []),
         ...(p.baseNotes || []),
-        ...(meta.profiles || []),
+        ...productProfiles,
       ]
         .join(" ")
         .toLowerCase();
@@ -463,7 +480,11 @@ function getVisibleProducts(cat) {
         return false;
       }
 
-      if (profile !== "all" && !(meta.profiles || []).includes(profile)) {
+      // Profile filter
+      if (
+        selectedProfile !== "all" &&
+        !productProfiles.includes(selectedProfile)
+      ) {
         return false;
       }
 
