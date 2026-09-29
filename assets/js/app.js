@@ -1713,98 +1713,170 @@ document.querySelectorAll(".quiz-options").forEach((group) => {
 // FIND SCENT
 // ------------------------------------------------------------
 
-document.getElementById("findScentBtn").addEventListener("click", () => {
-  const selectedProfiles = Array.isArray(quizAnswers.profile)
-    ? quizAnswers.profile
-    : [];
+document
+  .getElementById("findScentBtn")
+  .addEventListener("click", () => {
 
-  const selectedOccasion = quizAnswers.occasion || "";
+    const selectedProfiles =
+      Array.isArray(quizAnswers.profile)
+        ? quizAnswers.profile
+        : [];
 
-  const selectedStrength = quizAnswers.strength || "";
 
-  const scores = catalog
-    .all()
-    .map((product) => {
-      const meta = PRODUCT_META[product.id] || {};
+    const selectedOccasion =
+      quizAnswers.occasion || "";
 
-      let score = 0;
 
-      // =================================================
-      // CHARACTER MATCH
-      // =================================================
+    const selectedStrength =
+      quizAnswers.strength || "";
 
-      const productProfiles = Array.isArray(meta.profiles)
-        ? meta.profiles.map((profile) => String(profile).trim().toLowerCase())
-        : String(meta.profiles || "")
-            .split(",")
-            .map((profile) => profile.trim().toLowerCase())
-            .filter(Boolean);
 
-      const profileMatch = selectedProfiles.some((profile) =>
-        productProfiles.includes(profile),
+    const scores = catalog
+      .all()
+      .map(product => {
+
+        const meta =
+          PRODUCT_META[product.id] || {};
+
+
+        let score = 0;
+
+
+        // =================================================
+        // CHARACTER MATCH
+        // =================================================
+
+        const productProfiles =
+          Array.isArray(meta.profiles)
+            ? meta.profiles
+                .map(profile =>
+                  String(profile)
+                    .trim()
+                    .toLowerCase()
+                )
+            : String(meta.profiles || "")
+                .split(",")
+                .map(profile =>
+                  profile
+                    .trim()
+                    .toLowerCase()
+                )
+                .filter(Boolean);
+
+
+        const profileMatch =
+          selectedProfiles.some(profile =>
+            productProfiles.includes(profile)
+          );
+
+
+        if (profileMatch) {
+
+          score += 4;
+
+        }
+
+
+        // =================================================
+        // OCCASION MATCH
+        // =================================================
+
+        const productOccasions =
+          Array.isArray(meta.occasion)
+            ? meta.occasion
+            : String(meta.occasion || "")
+                .split(",")
+                .map(value =>
+                  value
+                    .trim()
+                    .toLowerCase()
+                )
+                .filter(Boolean);
+
+
+        if (
+          selectedOccasion &&
+          productOccasions.includes(
+            selectedOccasion.toLowerCase()
+          )
+        ) {
+
+          score += 3;
+
+        }
+
+
+        // =================================================
+        // STRENGTH MATCH
+        // =================================================
+
+        if (
+          selectedStrength &&
+          String(meta.strength || "")
+            .trim()
+            .toLowerCase() ===
+            selectedStrength
+              .trim()
+              .toLowerCase()
+        ) {
+
+          score += 2;
+
+        }
+
+
+        return {
+          product,
+          score
+        };
+
+      })
+
+
+      .sort(
+        (a, b) =>
+          b.score - a.score
       );
 
-      if (profileMatch) {
-        score += 4;
-      }
 
-      // =================================================
-      // OCCASION MATCH
-      // =================================================
+    // =====================================================
+    // GET RESULT
+    // =====================================================
 
-      const productOccasions = Array.isArray(meta.occasion)
-        ? meta.occasion
-        : String(meta.occasion || "")
-            .split(",")
-            .map((value) => value.trim().toLowerCase())
-            .filter(Boolean);
+    const winner =
+      scores[0]?.product ||
+      catalog.all()[0];
 
-      if (
-        selectedOccasion &&
-        productOccasions.includes(selectedOccasion.toLowerCase())
-      ) {
-        score += 3;
-      }
 
-      // =================================================
-      // STRENGTH MATCH
-      // =================================================
+    document
+      .getElementById("quizResultName")
+      .textContent =
+      winner.name;
 
-      if (
-        selectedStrength &&
-        String(meta.strength || "")
-          .trim()
-          .toLowerCase() === selectedStrength.trim().toLowerCase()
-      ) {
-        score += 2;
-      }
 
-      return {
-        product,
-        score,
-      };
-    })
+    document
+      .getElementById("quizResultText")
+      .textContent =
+      winner.desc +
+      " Best suited for: " +
+      (
+        winner.occasion ||
+        "versatile wear"
+      ) +
+      ".";
 
-    .sort((a, b) => b.score - a.score);
 
-  // =====================================================
-  // GET RESULT
-  // =====================================================
+    document
+      .getElementById("quizResult")
+      .classList.add("show");
 
-  const winner = scores[0]?.product || catalog.all()[0];
 
-  document.getElementById("quizResultName").textContent = winner.name;
+    document
+      .getElementById("quizOrderBtn")
+      .dataset.id =
+      winner.id;
 
-  document.getElementById("quizResultText").textContent =
-    winner.desc +
-    " Best suited for: " +
-    (winner.occasion || "versatile wear") +
-    ".";
-
-  document.getElementById("quizResult").classList.add("show");
-
-  document.getElementById("quizOrderBtn").dataset.id = winner.id;
-});
+  });
 
 // ============================================================
 // QUIZ ORDER BUTTON
