@@ -1,5 +1,14 @@
 import { Product, PRODUCTS, PRODUCT_PRICE, PRODUCT_META } from "./products.js";
 
+<script
+  type="module"
+  src="assets/js/app.js"
+></script>
+
+<script
+  src="assets/js/profile-sync.js"
+></script>
+
 // ============================================================
 // AURA & ESSENCE FRONTEND
 // Object-oriented services are defined below so catalog, cart,
