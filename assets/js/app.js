@@ -1980,13 +1980,18 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
       // ======================================================
 
       const productOccasions = Array.isArray(meta.occasion)
-        ? meta.occasion.map((value) => normalizeProfile(value)).filter(Boolean)
+        ? meta.occasion
+            .map((value) => normalizeProfile(value))
+            .filter(Boolean)
         : String(meta.occasion || "")
             .split(",")
             .map((value) => normalizeProfile(value))
             .filter(Boolean);
 
-      if (selectedOccasion && productOccasions.includes(selectedOccasion)) {
+      if (
+        selectedOccasion &&
+        productOccasions.includes(selectedOccasion)
+      ) {
         score += 3;
       }
 
@@ -1996,7 +2001,10 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
 
       const productStrength = normalizeStrength(meta.strength);
 
-      if (quizAnswers.strength && productStrength === selectedStrength) {
+      if (
+        quizAnswers.strength &&
+        productStrength === selectedStrength
+      ) {
         score += 2;
       }
 
@@ -2036,7 +2044,8 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
   // DISPLAY RESULT
   // ==========================================================
 
-  document.getElementById("quizResultName").textContent = winner.name;
+  document.getElementById("quizResultName").textContent =
+    winner.name;
 
   // Get winner metadata
   const winnerMeta = PRODUCT_META[winner.id] || {};
@@ -2054,7 +2063,8 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
 
   const matchedProfiles = selectedProfiles.filter((selected) =>
     winnerProfiles.some(
-      (profile) => normalizeProfile(profile) === normalizeProfile(selected),
+      (profile) =>
+        normalizeProfile(profile) === normalizeProfile(selected),
     ),
   );
 
@@ -2065,16 +2075,23 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
       " Your selected scent character" +
       (matchedProfiles.length > 1 ? "s are: " : " is: ") +
       matchedProfiles
-        .map((profile) => profile.charAt(0).toUpperCase() + profile.slice(1))
+        .map(
+          (profile) =>
+            profile.charAt(0).toUpperCase() + profile.slice(1),
+        )
         .join(", ") +
       ".";
   }
 
   if (winner.occasion) {
-    resultText += " Best suited for: " + winner.occasion + ".";
+    resultText +=
+      " Best suited for: " +
+      winner.occasion +
+      ".";
   }
 
-  document.getElementById("quizResultText").textContent = resultText;
+  document.getElementById("quizResultText").textContent =
+    resultText;
 
   // ==========================================================
   // SHOW RESULT
@@ -2086,28 +2103,32 @@ document.getElementById("findScentBtn")?.addEventListener("click", () => {
   // SET ORDER BUTTON
   // ==========================================================
 
-  document.getElementById("quizOrderBtn").dataset.id = winner.id;
+  document.getElementById("quizOrderBtn").dataset.id =
+    winner.id;
 });
 
 // ============================================================
 // QUIZ ORDER BUTTON
 // ============================================================
 
-document.getElementById("quizOrderBtn")?.addEventListener("click", (e) => {
-  const productId = e.currentTarget.dataset.id;
+document.getElementById("quizOrderBtn")?.addEventListener(
+  "click",
+  (e) => {
+    const productId = e.currentTarget.dataset.id;
 
-  if (!productId) {
-    return;
-  }
+    if (!productId) {
+      return;
+    }
 
-  scentSelect.value = productId;
+    scentSelect.value = productId;
 
-  syncQuantity();
+    syncQuantity();
 
-  document.getElementById("order")?.scrollIntoView({
-    behavior: "smooth",
-  });
-});
+    document.getElementById("order")?.scrollIntoView({
+      behavior: "smooth",
+    });
+  },
+);
 
 // ============================================================
 // BUILD YOUR DUO
