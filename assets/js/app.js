@@ -1652,52 +1652,86 @@ const quizAnswers = {};
 // QUIZ OPTION SELECTION
 // ------------------------------------------------------------
 
+const quizAnswers = {
+  occasion: "",
+  profile: [],
+  strength: "",
+};
+
 document.querySelectorAll(".quiz-options").forEach((group) => {
   group.addEventListener("click", (e) => {
     const btn = e.target.closest(".quiz-option");
 
-    if (!btn) {
+    if (!btn) return;
+
+    const question = group.dataset.question;
+
+    // =====================================================
+    // CHARACTER = MULTI SELECT
+    // =====================================================
+
+    if (question === "profile") {
+      const value = String(btn.dataset.value || "")
+        .trim()
+        .toLowerCase();
+
+      if (!Array.isArray(quizAnswers.profile)) {
+        quizAnswers.profile = [];
+      }
+
+      const index = quizAnswers.profile.indexOf(value);
+
+      // Already selected
+      if (index !== -1) {
+        quizAnswers.profile.splice(index, 1);
+
+        btn.classList.remove("active");
+      }
+
+      // Not selected yet
+      else {
+        quizAnswers.profile.push(value);
+
+        btn.classList.add("active");
+      }
+
       return;
     }
 
-    const q = group.dataset.question;
+    // =====================================================
+    // OCCASION / STRENGTH = SINGLE SELECT
+    // =====================================================
 
-    let value = btn.dataset.value || "";
+    quizAnswers[question] = btn.dataset.value;
 
-    // Strength values are normalized
-    // to:
-    //
-    // subtle
-    // moderate
-    // bold
-
-    if (q === "strength") {
-      value = normalizeStrength(value);
-    }
-
-    quizAnswers[q] = value;
-
-    group
-      .querySelectorAll(".quiz-option")
-      .forEach((b) => b.classList.toggle("active", b === btn));
+    group.querySelectorAll(".quiz-option").forEach((option) => {
+      option.classList.toggle("active", option === btn);
+    });
   });
 });
-
 // ------------------------------------------------------------
 // FIND SCENT
 // ------------------------------------------------------------
 
 document.getElementById("findScentBtn").addEventListener("click", () => {
+  const selectedProfiles = Array.isArray(quizAnswers.profile)
+    ? quizAnswers.profile
+    : [];
+
+  const selectedOccasion = quizAnswers.occasion || "";
+
+  const selectedStrength = quizAnswers.strength || "";
+
   const scores = catalog
     .all()
-    .map((p) => {
-      const meta = PRODUCT_META[p.id] || {};
+    .map((product) => {
+      const meta = PRODUCT_META[product.id] || {};
 
       let score = 0;
 
-      // ------------------------------------------------
-      // PROFILE MATCH
-      // ------------------------------------------------
+      // =================================================
+      // CHARACTER MATCH
+      // =================================================
 
       const productProfiles = Array.isArray(meta.profiles)
         ? meta.profiles.map((profile) => String(profile).trim().toLowerCase())
@@ -1706,59 +1740,58 @@ document.getElementById("findScentBtn").addEventListener("click", () => {
             .map((profile) => profile.trim().toLowerCase())
             .filter(Boolean);
 
-      if (
-        quizAnswers.profile &&
-        productProfiles.includes(
-          String(quizAnswers.profile).trim().toLowerCase(),
-        )
-      ) {
+      const profileMatch = selectedProfiles.some((profile) =>
+        productProfiles.includes(profile),
+      );
+
+      if (profileMatch) {
         score += 4;
       }
 
-      // ------------------------------------------------
+      // =================================================
       // OCCASION MATCH
-      // ------------------------------------------------
+      // =================================================
 
       const productOccasions = Array.isArray(meta.occasion)
-        ? meta.occasion.map((value) => String(value).trim().toLowerCase())
+        ? meta.occasion
         : String(meta.occasion || "")
             .split(",")
             .map((value) => value.trim().toLowerCase())
             .filter(Boolean);
 
       if (
-        quizAnswers.occasion &&
-        productOccasions.includes(
-          String(quizAnswers.occasion).trim().toLowerCase(),
-        )
+        selectedOccasion &&
+        productOccasions.includes(selectedOccasion.toLowerCase())
       ) {
         score += 3;
       }
 
-      // ------------------------------------------------
+      // =================================================
       // STRENGTH MATCH
-      // ------------------------------------------------
+      // =================================================
 
-      const productStrength = normalizeStrength(meta.strength);
-
-      const selectedStrength = normalizeStrength(quizAnswers.strength);
-
-      if (quizAnswers.strength && productStrength === selectedStrength) {
+      if (
+        selectedStrength &&
+        String(meta.strength || "")
+          .trim()
+          .toLowerCase() === selectedStrength.trim().toLowerCase()
+      ) {
         score += 2;
       }
 
       return {
-        p,
+        product,
         score,
       };
     })
+
     .sort((a, b) => b.score - a.score);
 
-  const winner = scores[0]?.p || catalog.all()[0];
+  // =====================================================
+  // GET RESULT
+  // =====================================================
 
-  if (!winner) {
-    return;
-  }
+  const winner = scores[0]?.product || catalog.all()[0];
 
   document.getElementById("quizResultName").textContent = winner.name;
 
