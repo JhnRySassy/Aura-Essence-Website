@@ -14,10 +14,13 @@ const reviewStats = {};
 
 class ProductCatalog {
   constructor(products, meta = {}) {
-    this.products = products.map(product => new Product({
-      ...product,
-      ...(meta[product.id] || {})
-    }));
+    this.products = products.map(
+      (product) =>
+        new Product({
+          ...product,
+          ...(meta[product.id] || {}),
+        }),
+    );
 
     this.meta = meta;
   }
@@ -27,13 +30,11 @@ class ProductCatalog {
   }
 
   find(id) {
-    return this.products.find(product => product.id === id);
+    return this.products.find((product) => product.id === id);
   }
 
   upsert(data) {
-    const index = this.products.findIndex(
-      product => product.id === data.id
-    );
+    const index = this.products.findIndex((product) => product.id === data.id);
 
     const product = new Product(data);
 
@@ -47,33 +48,23 @@ class ProductCatalog {
   }
 
   remove(id) {
-    this.products =
-      this.products.filter(product => product.id !== id);
+    this.products = this.products.filter((product) => product.id !== id);
   }
 }
-
 
 class CartManager {
   constructor(storageKey = "aeCart") {
     this.storageKey = storageKey;
 
-    this.items =
-      JSON.parse(
-        localStorage.getItem(storageKey) || "[]"
-      );
+    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
   }
 
   save() {
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify(this.items)
-    );
+    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
   }
 
   find(id) {
-    return this.items.find(
-      item => item.id === id
-    );
+    return this.items.find((item) => item.id === id);
   }
 
   clear() {
@@ -82,25 +73,15 @@ class CartManager {
   }
 
   add(product, qty = 1) {
-
-    if (
-      !product ||
-      product.active === false ||
-      product.stock === 0
-    ) {
+    if (!product || product.active === false || product.stock === 0) {
       return false;
     }
 
-    const existing =
-      this.find(product.id);
+    const existing = this.find(product.id);
 
-    const nextQty =
-      (existing?.qty || 0) + qty;
+    const nextQty = (existing?.qty || 0) + qty;
 
-    if (
-      product.stock != null &&
-      nextQty > Number(product.stock)
-    ) {
+    if (product.stock != null && nextQty > Number(product.stock)) {
       return false;
     }
 
@@ -109,7 +90,7 @@ class CartManager {
     } else {
       this.items.push({
         id: product.id,
-        qty
+        qty,
       });
     }
 
@@ -119,26 +100,16 @@ class CartManager {
   }
 
   change(product, delta) {
-
-    const item =
-      this.find(product?.id);
+    const item = this.find(product?.id);
 
     if (!item || !product) {
       return;
     }
 
-    item.qty =
-      Math.max(
-        0,
-        item.qty + delta
-      );
+    item.qty = Math.max(0, item.qty + delta);
 
     if (product.stock != null) {
-      item.qty =
-        Math.min(
-          item.qty,
-          Number(product.stock)
-        );
+      item.qty = Math.min(item.qty, Number(product.stock));
     }
 
     if (item.qty === 0) {
@@ -149,48 +120,25 @@ class CartManager {
   }
 
   remove(id) {
-
-    this.items =
-      this.items.filter(
-        item => item.id !== id
-      );
+    this.items = this.items.filter((item) => item.id !== id);
 
     this.save();
   }
 
   total(catalog) {
+    return this.items.reduce((sum, item) => {
+      const product = catalog.find(item.id);
 
-    return this.items.reduce(
-      (sum, item) => {
-
-        const product =
-          catalog.find(item.id);
-
-        return sum +
-          (
-            product
-              ? product.priceValue * item.qty
-              : 0
-          );
-
-      },
-      0
-    );
+      return sum + (product ? product.priceValue * item.qty : 0);
+    }, 0);
   }
 }
 
-
 class WishlistManager {
-
   constructor(storageKey = "aeFavorites") {
+    this.storageKey = storageKey;
 
-    this.storageKey =
-      storageKey;
-
-    this.items =
-      JSON.parse(
-        localStorage.getItem(storageKey) || "[]"
-      );
+    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
   }
 
   has(id) {
@@ -198,107 +146,65 @@ class WishlistManager {
   }
 
   toggle(id) {
+    this.items = this.has(id)
+      ? this.items.filter((item) => item !== id)
+      : [...this.items, id];
 
-    this.items =
-      this.has(id)
-        ? this.items.filter(
-            item => item !== id
-          )
-        : [
-            ...this.items,
-            id
-          ];
-
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify(this.items)
-    );
+    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
 
     return this.items;
   }
 }
 
-
 class ApiClient {
-
   constructor(baseUrl) {
     this.baseUrl = baseUrl;
   }
 
   async get(params = {}) {
+    const url = new URL(this.baseUrl);
 
-    const url =
-      new URL(this.baseUrl);
+    Object.entries(params).forEach(([key, value]) =>
+      url.searchParams.set(key, value),
+    );
 
-    Object.entries(params)
-      .forEach(
-        ([key, value]) =>
-          url.searchParams.set(
-            key,
-            value
-          )
-      );
-
-    const response =
-      await fetch(
-        url,
-        {
-          cache: "no-store"
-        }
-      );
+    const response = await fetch(url, {
+      cache: "no-store",
+    });
 
     return response.json();
   }
 
   async post(params = {}) {
+    const response = await fetch(this.baseUrl, {
+      method: "POST",
 
-    const response =
-      await fetch(
-        this.baseUrl,
-        {
-          method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
 
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded;charset=UTF-8"
-          },
-
-          body:
-            new URLSearchParams(
-              params
-            ).toString()
-        }
-      );
+      body: new URLSearchParams(params).toString(),
+    });
 
     return response.json();
   }
 }
 
-
 // ============================================================
 // GLOBAL SERVICES
 // ============================================================
 
-const catalog =
-  new ProductCatalog(
-    PRODUCTS,
-    PRODUCT_META
-  );
+const catalog = new ProductCatalog(PRODUCTS, PRODUCT_META);
 
-const cartManager =
-  new CartManager();
+const cartManager = new CartManager();
 
-const wishlistManager =
-  new WishlistManager();
+const wishlistManager = new WishlistManager();
 
 let apiClient;
 
-let favorites =
-  wishlistManager.items;
+let favorites = wishlistManager.items;
 
-let cart =
-  cartManager.items;
-
+let cart = cartManager.items;
 
 // ============================================================
 // BASIC HELPERS
@@ -308,184 +214,103 @@ function getProductById(id) {
   return catalog.find(id);
 }
 
-
 function getCartTotal() {
-  return cartManager.total(
-    catalog
-  );
+  return cartManager.total(catalog);
 }
 
-
 function saveCart() {
-
-  cartManager.items =
-    cart;
+  cartManager.items = cart;
 
   cartManager.save();
 
   renderCart();
 }
 
-
-function addToCart(
-  id,
-  qty = 1
-) {
-
-  const product =
-    getProductById(id);
+function addToCart(id, qty = 1) {
+  const product = getProductById(id);
 
   if (!product) {
     return;
   }
 
-  const existing =
-    cartManager.find(id);
+  const existing = cartManager.find(id);
 
-  const next =
-    (existing?.qty || 0) + qty;
+  const next = (existing?.qty || 0) + qty;
 
-  if (
-    product.stock != null &&
-    next > Number(product.stock)
-  ) {
-
-    alert(
-      `Only ${product.stock} bottle(s) of ${product.name} available.`
-    );
+  if (product.stock != null && next > Number(product.stock)) {
+    alert(`Only ${product.stock} bottle(s) of ${product.name} available.`);
 
     return;
   }
 
-  if (
-    !cartManager.add(
-      product,
-      qty
-    )
-  ) {
+  if (!cartManager.add(product, qty)) {
     return;
   }
 
-  cart =
-    cartManager.items;
+  cart = cartManager.items;
 
   renderCart();
 }
 
-
-function changeCartQty(
-  id,
-  delta
-) {
-
-  const product =
-    getProductById(id);
+function changeCartQty(id, delta) {
+  const product = getProductById(id);
 
   if (!product) {
     return;
   }
 
-  cartManager.change(
-    product,
-    delta
-  );
+  cartManager.change(product, delta);
 
-  cart =
-    cartManager.items;
+  cart = cartManager.items;
 
   renderCart();
 }
-
 
 function removeFromCart(id) {
-
   cartManager.remove(id);
 
-  cart =
-    cartManager.items;
+  cart = cartManager.items;
 
   renderCart();
 }
 
-
 function renderCart() {
+  const wrap = document.getElementById("cartItems");
 
-  const wrap =
-    document.getElementById(
-      "cartItems"
-    );
+  const count = document.getElementById("cartCount");
 
-  const count =
-    document.getElementById(
-      "cartCount"
-    );
-
-  const total =
-    document.getElementById(
-      "cartTotal"
-    );
+  const total = document.getElementById("cartTotal");
 
   if (!wrap) {
     return;
   }
 
-  const valid =
-    cart.filter(
-      item =>
-        getProductById(
-          item.id
-        )
-    );
+  const valid = cart.filter((item) => getProductById(item.id));
 
-  if (
-    valid.length !== cart.length
-  ) {
-
+  if (valid.length !== cart.length) {
     cart = valid;
 
-    localStorage.setItem(
-      "aeCart",
-      JSON.stringify(cart)
-    );
+    localStorage.setItem("aeCart", JSON.stringify(cart));
   }
 
-  const totalQty =
-    cart.reduce(
-      (sum, item) =>
-        sum + item.qty,
-      0
-    );
+  const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
 
-  count.textContent =
-    `${totalQty} ${
-      totalQty === 1
-        ? "item"
-        : "items"
-    }`;
+  count.textContent = `${totalQty} ${totalQty === 1 ? "item" : "items"}`;
 
-  total.textContent =
-    `₱${getCartTotal().toLocaleString()}`;
-
+  total.textContent = `₱${getCartTotal().toLocaleString()}`;
 
   if (!cart.length) {
-
     wrap.innerHTML =
       '<div class="cart-empty">Your cart is empty. Add one or more fragrances above.</div>';
 
     return;
   }
 
+  wrap.innerHTML = cart
+    .map((item) => {
+      const p = getProductById(item.id);
 
-  wrap.innerHTML =
-    cart
-      .map(item => {
-
-        const p =
-          getProductById(
-            item.id
-          );
-
-        return `
+      return `
           <div class="cart-item">
 
             <img
@@ -500,10 +325,7 @@ function renderCart() {
               </div>
 
               <div class="cart-item-price">
-                ₱${Number(
-                  p.price ||
-                  PRODUCT_PRICE
-                ).toLocaleString()}
+                ₱${Number(p.price || PRODUCT_PRICE).toLocaleString()}
                 each
               </div>
 
@@ -542,308 +364,144 @@ function renderCart() {
 
           </div>
         `;
-
-      })
-      .join("");
+    })
+    .join("");
 }
-
 
 // ============================================================
 // CART EVENTS
 // ============================================================
 
-document
-  .getElementById(
-    "cartItems"
-  )
-  ?.addEventListener(
-    "click",
-    e => {
+document.getElementById("cartItems")?.addEventListener("click", (e) => {
+  const minus = e.target.closest("[data-cart-minus]");
 
-      const minus =
-        e.target.closest(
-          "[data-cart-minus]"
-        );
+  const plus = e.target.closest("[data-cart-plus]");
 
-      const plus =
-        e.target.closest(
-          "[data-cart-plus]"
-        );
+  const remove = e.target.closest("[data-cart-remove]");
 
-      const remove =
-        e.target.closest(
-          "[data-cart-remove]"
-        );
+  if (minus) {
+    changeCartQty(minus.dataset.cartMinus, -1);
+  }
 
+  if (plus) {
+    changeCartQty(plus.dataset.cartPlus, 1);
+  }
 
-      if (minus) {
+  if (remove) {
+    removeFromCart(remove.dataset.cartRemove);
+  }
+});
 
-        changeCartQty(
-          minus.dataset.cartMinus,
-          -1
-        );
-
-      }
-
-
-      if (plus) {
-
-        changeCartQty(
-          plus.dataset.cartPlus,
-          1
-        );
-
-      }
-
-
-      if (remove) {
-
-        removeFromCart(
-          remove.dataset.cartRemove
-        );
-
-      }
-
-    }
-  );
-
-
-document
-  .getElementById(
-    "addSelectedToCart"
-  )
-  ?.addEventListener(
-    "click",
-    () => {
-
-      if (
-        scentSelect.value
-      ) {
-
-        addToCart(
-          scentSelect.value,
-          1
-        );
-
-      }
-
-    }
-  );
-
+document.getElementById("addSelectedToCart")?.addEventListener("click", () => {
+  if (scentSelect.value) {
+    addToCart(scentSelect.value, 1);
+  }
+});
 
 // ============================================================
 // DOM REFERENCES
 // ============================================================
 
-const carousel =
-  document.getElementById(
-    "carousel"
-  );
+const carousel = document.getElementById("carousel");
 
-const carouselPrev =
-  document.getElementById(
-    "carouselPrev"
-  );
+const carouselPrev = document.getElementById("carouselPrev");
 
-const carouselNext =
-  document.getElementById(
-    "carouselNext"
-  );
+const carouselNext = document.getElementById("carouselNext");
 
-const scentSelect =
-  document.getElementById(
-    "scent"
-  );
+const scentSelect = document.getElementById("scent");
 
-const tabs =
-  document.querySelectorAll(
-    ".tab"
-  );
+const tabs = document.querySelectorAll(".tab");
 
-let activeCat =
-  "men";
+let activeCat = "men";
 
+const productSearch = document.getElementById("productSearch");
 
-const productSearch =
-  document.getElementById(
-    "productSearch"
-  );
+const profileFilter = document.getElementById("profileFilter");
 
-const profileFilter =
-  document.getElementById(
-    "profileFilter"
-  );
+const wishlistToggle = document.getElementById("wishlistToggle");
 
-const wishlistToggle =
-  document.getElementById(
-    "wishlistToggle"
-  );
+const wishlistPanel = document.getElementById("wishlistPanel");
 
-const wishlistPanel =
-  document.getElementById(
-    "wishlistPanel"
-  );
+const wishlistItems = document.getElementById("wishlistItems");
 
-const wishlistItems =
-  document.getElementById(
-    "wishlistItems"
-  );
-
-const wishlistEmpty =
-  document.getElementById(
-    "wishlistEmpty"
-  );
-
+const wishlistEmpty = document.getElementById("wishlistEmpty");
 
 // ============================================================
 // PRODUCT FILTER
 // ============================================================
 
 function getVisibleProducts(cat) {
+  const query = (productSearch?.value || "").trim().toLowerCase();
 
-  const query =
-    (
-      productSearch?.value ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-  const profile =
-    profileFilter?.value ||
-    "all";
-
+  const profile = profileFilter?.value || "all";
 
   return catalog
     .all()
-    .filter(p => {
-
-      if (
-        p.active === false
-      ) {
+    .filter((p) => {
+      if (p.active === false) {
         return false;
       }
 
-      if (
-        p.cat !== cat
-      ) {
+      if (p.cat !== cat) {
         return false;
       }
 
-      const meta =
-        PRODUCT_META[p.id] ||
-        {};
+      const meta = PRODUCT_META[p.id] || {};
 
+      const searchable = [
+        p.name,
+        p.desc,
+        ...(p.topNotes || []),
+        ...(p.heartNotes || []),
+        ...(p.baseNotes || []),
+        ...(meta.profiles || []),
+      ]
+        .join(" ")
+        .toLowerCase();
 
-      const searchable =
-        [
-          p.name,
-          p.desc,
-          ...(p.topNotes || []),
-          ...(p.heartNotes || []),
-          ...(p.baseNotes || []),
-          ...(meta.profiles || [])
-        ]
-          .join(" ")
-          .toLowerCase();
-
-
-      if (
-        query &&
-        !searchable.includes(
-          query
-        )
-      ) {
+      if (query && !searchable.includes(query)) {
         return false;
       }
 
-
-      if (
-        profile !== "all" &&
-        !(
-          meta.profiles || []
-        ).includes(profile)
-      ) {
+      if (profile !== "all" && !(meta.profiles || []).includes(profile)) {
         return false;
       }
-
 
       return true;
-
     })
-    .sort(
-      (a, b) =>
-        Number(
-          a.sortOrder || 0
-        ) -
-        Number(
-          b.sortOrder || 0
-        )
-    );
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
 }
-
 
 // ============================================================
 // PRODUCT CAROUSEL
 // ============================================================
 
 function renderCarousel(cat) {
+  carousel.innerHTML = "";
 
-  carousel.innerHTML =
-    "";
+  const products = getVisibleProducts(cat);
 
-  const products =
-    getVisibleProducts(
-      cat
-    );
+  products.forEach((p) => {
+    const card = document.createElement("div");
 
+    card.className = "pcard";
 
-  products.forEach(p => {
+    const meta = PRODUCT_META[p.id] || {};
 
-    const card =
-      document.createElement(
-        "div"
-      );
+    const stats = reviewStats[p.id] || {
+      avg: 0,
+      count: 0,
+    };
 
-    card.className =
-      "pcard";
+    const ratingText = stats.count
+      ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>`
+      : "No reviews yet";
 
+    const badges = (meta.badges || [])
+      .map((b) => `<span class="product-badge">${b}</span>`)
+      .join("");
 
-    const meta =
-      PRODUCT_META[p.id] ||
-      {};
-
-    const stats =
-      reviewStats[p.id] ||
-      {
-        avg: 0,
-        count: 0
-      };
-
-
-    const ratingText =
-      stats.count
-        ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>`
-        : "No reviews yet";
-
-
-    const badges =
-      (
-        meta.badges ||
-        []
-      )
-        .map(
-          b =>
-            `<span class="product-badge">${b}</span>`
-        )
-        .join("");
-
-
-    const saved =
-      favorites.includes(
-        p.id
-      );
-
+    const saved = favorites.includes(p.id);
 
     card.innerHTML = `
 
@@ -855,27 +513,13 @@ function renderCarousel(cat) {
 
         <button
           type="button"
-          class="wishlist-btn ${
-            saved
-              ? "active"
-              : ""
-          }"
+          class="wishlist-btn ${saved ? "active" : ""}"
           data-wishlist-id="${p.id}"
-          aria-label="${
-            saved
-              ? "Remove"
-              : "Add"
-          } ${p.name} ${
-            saved
-              ? "from"
-              : "to"
+          aria-label="${saved ? "Remove" : "Add"} ${p.name} ${
+            saved ? "from" : "to"
           } favorites"
         >
-          ${
-            saved
-              ? "♥"
-              : "♡"
-          }
+          ${saved ? "♥" : "♡"}
         </button>
 
         <img
@@ -890,11 +534,7 @@ function renderCarousel(cat) {
       <div class="pbody">
 
         <span class="ptag">
-          ${
-            cat === "men"
-              ? "FOR HIM"
-              : "FOR HER"
-          }
+          ${cat === "men" ? "FOR HIM" : "FOR HER"}
         </span>
 
         <h4>
@@ -913,10 +553,7 @@ function renderCarousel(cat) {
         <div class="pfoot">
 
           <span class="pprice">
-            &#8369;${Number(
-              p.price ||
-              PRODUCT_PRICE
-            ).toLocaleString()}
+            &#8369;${Number(p.price || PRODUCT_PRICE).toLocaleString()}
           </span>
 
 
@@ -935,17 +572,9 @@ function renderCarousel(cat) {
               type="button"
               class="porder"
               data-id="${p.id}"
-              ${
-                p.stock === 0
-                  ? "disabled"
-                  : ""
-              }
+              ${p.stock === 0 ? "disabled" : ""}
             >
-              ${
-                p.stock === 0
-                  ? "Sold Out"
-                  : "Add"
-              }
+              ${p.stock === 0 ? "Sold Out" : "Add"}
             </button>
 
           </div>
@@ -954,23 +583,15 @@ function renderCarousel(cat) {
 
 
         ${
-          p.stock !== null &&
-          p.stock !== undefined
+          p.stock !== null && p.stock !== undefined
             ? `
               <span
                 class="sold-out"
                 style="color:${
-                  p.stock === 0
-                    ? "#d98b8b"
-                    : "var(--parchment-dim)"
+                  p.stock === 0 ? "#d98b8b" : "var(--parchment-dim)"
                 }"
               >
-                ${
-                  p.stock === 0
-                    ? "SOLD OUT"
-                    : p.stock +
-                      " in stock"
-                }
+                ${p.stock === 0 ? "SOLD OUT" : p.stock + " in stock"}
               </span>
             `
             : ""
@@ -979,370 +600,180 @@ function renderCarousel(cat) {
       </div>
     `;
 
-
-    carousel.appendChild(
-      card
-    );
-
+    carousel.appendChild(card);
   });
 
-
   if (!products.length) {
-
     carousel.innerHTML =
       '<div class="summary-empty" style="min-width:100%">No fragrances match your search or filter.</div>';
-
   }
 
-
-  requestAnimationFrame(
-    updateCarouselArrows
-  );
+  requestAnimationFrame(updateCarouselArrows);
 }
-
 
 // ============================================================
 // CAROUSEL CONTROLS
 // ============================================================
 
 function updateCarouselArrows() {
+  const maxScroll = carousel.scrollWidth - carousel.clientWidth;
 
-  const maxScroll =
-    carousel.scrollWidth -
-    carousel.clientWidth;
+  const hasOverflow = maxScroll > 2;
 
-  const hasOverflow =
-    maxScroll > 2;
+  carouselPrev.disabled = !hasOverflow || carousel.scrollLeft <= 2;
 
-
-  carouselPrev.disabled =
-    !hasOverflow ||
-    carousel.scrollLeft <= 2;
-
-
-  carouselNext.disabled =
-    !hasOverflow ||
-    carousel.scrollLeft >=
-      maxScroll - 2;
+  carouselNext.disabled = !hasOverflow || carousel.scrollLeft >= maxScroll - 2;
 }
 
+function scrollCarousel(direction) {
+  const card = carousel.querySelector(".pcard");
 
-function scrollCarousel(
-  direction
-) {
+  const gap = 18;
 
-  const card =
-    carousel.querySelector(
-      ".pcard"
-    );
-
-  const gap =
-    18;
-
-  const amount =
-    card
-      ? card.getBoundingClientRect()
-          .width + gap
-      : 248;
-
+  const amount = card ? card.getBoundingClientRect().width + gap : 248;
 
   carousel.scrollBy({
-    left:
-      direction * amount,
-    behavior:
-      "smooth"
+    left: direction * amount,
+    behavior: "smooth",
   });
 }
-
 
 // ============================================================
 // WISHLIST
 // ============================================================
 
 function updateWishlistPanel() {
+  wishlistItems.innerHTML = "";
 
-  wishlistItems.innerHTML =
-    "";
+  const savedProducts = catalog.all().filter((p) => favorites.includes(p.id));
 
-  const savedProducts =
-    catalog
-      .all()
-      .filter(
-        p =>
-          favorites.includes(
-            p.id
-          )
-      );
+  wishlistEmpty.style.display = savedProducts.length ? "none" : "block";
 
+  savedProducts.forEach((p) => {
+    const b = document.createElement("button");
 
-  wishlistEmpty.style.display =
-    savedProducts.length
-      ? "none"
-      : "block";
+    b.type = "button";
 
+    b.className = "wishlist-item";
 
-  savedProducts.forEach(
-    p => {
+    b.textContent = p.name;
 
-      const b =
-        document.createElement(
-          "button"
-        );
+    b.dataset.wishlistJump = p.id;
 
-      b.type =
-        "button";
-
-      b.className =
-        "wishlist-item";
-
-      b.textContent =
-        p.name;
-
-      b.dataset.wishlistJump =
-        p.id;
-
-      wishlistItems.appendChild(
-        b
-      );
-
-    }
-  );
+    wishlistItems.appendChild(b);
+  });
 }
 
-
 function toggleFavorite(id) {
-
-  favorites =
-    wishlistManager.toggle(
-      id
-    );
+  favorites = wishlistManager.toggle(id);
 
   updateWishlistPanel();
 
-  renderCarousel(
-    activeCat
-  );
+  renderCarousel(activeCat);
 }
 
+carouselPrev.addEventListener("click", () => scrollCarousel(-1));
 
-carouselPrev.addEventListener(
-  "click",
-  () =>
-    scrollCarousel(-1)
-);
+carouselNext.addEventListener("click", () => scrollCarousel(1));
 
-carouselNext.addEventListener(
-  "click",
-  () =>
-    scrollCarousel(1)
-);
+carousel.addEventListener("scroll", updateCarouselArrows, {
+  passive: true,
+});
 
-carousel.addEventListener(
-  "scroll",
-  updateCarouselArrows,
-  {
-    passive: true
+window.addEventListener("resize", updateCarouselArrows);
+
+productSearch.addEventListener("input", () => renderCarousel(activeCat));
+
+profileFilter.addEventListener("change", () => renderCarousel(activeCat));
+
+wishlistToggle.addEventListener("click", () => {
+  wishlistPanel.classList.toggle("show");
+
+  updateWishlistPanel();
+});
+
+wishlistItems.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-wishlist-jump]");
+
+  if (!b) {
+    return;
   }
-);
 
-window.addEventListener(
-  "resize",
-  updateCarouselArrows
-);
+  const p = catalog.find(b.dataset.wishlistJump);
 
-productSearch.addEventListener(
-  "input",
-  () =>
-    renderCarousel(
-      activeCat
-    )
-);
-
-profileFilter.addEventListener(
-  "change",
-  () =>
-    renderCarousel(
-      activeCat
-    )
-);
-
-wishlistToggle.addEventListener(
-  "click",
-  () => {
-
-    wishlistPanel.classList.toggle(
-      "show"
-    );
-
-    updateWishlistPanel();
-
+  if (!p) {
+    return;
   }
-);
 
-wishlistItems.addEventListener(
-  "click",
-  e => {
+  activeCat = p.cat;
 
-    const b =
-      e.target.closest(
-        "[data-wishlist-jump]"
-      );
+  tabs.forEach((t) =>
+    t.classList.toggle("active", t.dataset.cat === activeCat),
+  );
 
-    if (!b) {
-      return;
-    }
+  renderCarousel(activeCat);
 
-    const p =
-      catalog.find(
-        b.dataset.wishlistJump
-      );
-
-    if (!p) {
-      return;
-    }
-
-    activeCat =
-      p.cat;
-
-    tabs.forEach(
-      t =>
-        t.classList.toggle(
-          "active",
-          t.dataset.cat ===
-            activeCat
-        )
-    );
-
-    renderCarousel(
-      activeCat
-    );
-
-    document
-      .getElementById(
-        "collection"
-      )
-      .scrollIntoView({
-        behavior:
-          "smooth"
-      });
-
-  }
-);
-
+  document.getElementById("collection").scrollIntoView({
+    behavior: "smooth",
+  });
+});
 
 function renderScentOptions() {
-
-  scentSelect.innerHTML =
-    catalog
-      .all()
-      .map(
-        p =>
-          `<option value="${p.id}">${p.name} (${
-            p.cat === "men"
-              ? "For Him"
-              : "For Her"
-          })</option>`
-      )
-      .join("");
+  scentSelect.innerHTML = catalog
+    .all()
+    .map(
+      (p) =>
+        `<option value="${p.id}">${p.name} (${
+          p.cat === "men" ? "For Him" : "For Her"
+        })</option>`,
+    )
+    .join("");
 }
-
 
 // ============================================================
 // FRAGRANCE DETAILS MODAL
 // ============================================================
 
-const fragranceModal =
-  document.getElementById(
-    "fragranceModal"
-  );
+const fragranceModal = document.getElementById("fragranceModal");
 
-const fragranceClose =
-  document.getElementById(
-    "fragranceClose"
-  );
+const fragranceClose = document.getElementById("fragranceClose");
 
-const fragranceModalTitle =
-  document.getElementById(
-    "fragranceModalTitle"
-  );
+const fragranceModalTitle = document.getElementById("fragranceModalTitle");
 
-const fragranceModalCategory =
-  document.getElementById(
-    "fragranceModalCategory"
-  );
+const fragranceModalCategory = document.getElementById(
+  "fragranceModalCategory",
+);
 
-const fragranceModalDescription =
-  document.getElementById(
-    "fragranceModalDescription"
-  );
+const fragranceModalDescription = document.getElementById(
+  "fragranceModalDescription",
+);
 
-const fragranceTopNotes =
-  document.getElementById(
-    "fragranceTopNotes"
-  );
+const fragranceTopNotes = document.getElementById("fragranceTopNotes");
 
-const fragranceHeartNotes =
-  document.getElementById(
-    "fragranceHeartNotes"
-  );
+const fragranceHeartNotes = document.getElementById("fragranceHeartNotes");
 
-const fragranceBaseNotes =
-  document.getElementById(
-    "fragranceBaseNotes"
-  );
+const fragranceBaseNotes = document.getElementById("fragranceBaseNotes");
 
-const fragranceApplication =
-  document.getElementById(
-    "fragranceApplication"
-  );
+const fragranceApplication = document.getElementById("fragranceApplication");
 
-const fragranceOccasion =
-  document.getElementById(
-    "fragranceOccasion"
-  );
+const fragranceOccasion = document.getElementById("fragranceOccasion");
 
-const fragranceProfileBars =
-  document.getElementById(
-    "fragranceProfileBars"
-  );
+const fragranceProfileBars = document.getElementById("fragranceProfileBars");
 
-const fragranceDayNight =
-  document.getElementById(
-    "fragranceDayNight"
-  );
-
+const fragranceDayNight = document.getElementById("fragranceDayNight");
 
 // ============================================================
 // HTML ESCAPE
 // ============================================================
 
 function escapeHTML(value) {
-
-  return String(
-    value ?? ""
-  )
-    .replace(
-      /&/g,
-      "&amp;"
-    )
-    .replace(
-      /</g,
-      "&lt;"
-    )
-    .replace(
-      />/g,
-      "&gt;"
-    )
-    .replace(
-      /"/g,
-      "&quot;"
-    )
-    .replace(
-      /\'/g,
-      "&#039;"
-    );
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\'/g, "&#039;");
 }
-
 
 // ============================================================
 // STRENGTH NORMALIZATION
@@ -1357,51 +788,25 @@ function escapeHTML(value) {
 // Strong -> Bold
 // ============================================================
 
-function normalizeStrength(
-  value
-) {
+function normalizeStrength(value) {
+  const strength = String(value || "moderate")
+    .trim()
+    .toLowerCase();
 
-  const strength =
-    String(
-      value ||
-      "moderate"
-    )
-      .trim()
-      .toLowerCase();
-
-
-  if (
-    strength === "light"
-  ) {
+  if (strength === "light") {
     return "subtle";
   }
 
-
-  if (
-    strength === "strong"
-  ) {
+  if (strength === "strong") {
     return "bold";
   }
 
-
-  if (
-    [
-      "subtle",
-      "moderate",
-      "bold"
-    ].includes(
-      strength
-    )
-  ) {
-
+  if (["subtle", "moderate", "bold"].includes(strength)) {
     return strength;
-
   }
-
 
   return "moderate";
 }
-
 
 // ============================================================
 // OPEN FRAGRANCE DETAILS
@@ -1430,22 +835,17 @@ function openFragranceDetails(productId) {
   fragranceModalDescription.textContent =
     product.descLong || product.desc || "";
 
-  fragranceTopNotes.textContent =
-    (product.topNotes || []).join(" • ");
+  fragranceTopNotes.textContent = (product.topNotes || []).join(" • ");
 
-  fragranceHeartNotes.textContent =
-    (product.heartNotes || []).join(" • ");
+  fragranceHeartNotes.textContent = (product.heartNotes || []).join(" • ");
 
-  fragranceBaseNotes.textContent =
-    (product.baseNotes || []).join(" • ");
+  fragranceBaseNotes.textContent = (product.baseNotes || []).join(" • ");
 
-  fragranceApplication.textContent =
-    product.application || "";
+  fragranceApplication.textContent = product.application || "";
 
-  fragranceOccasion.textContent =
-    product.occasion
-      ? "Best suited for: " + product.occasion
-      : "";
+  fragranceOccasion.textContent = product.occasion
+    ? "Best suited for: " + product.occasion
+    : "";
 
   // ============================================
   // ADMIN-MANAGED PROFILE DATA
@@ -1483,14 +883,10 @@ function openFragranceDetails(productId) {
    * ["Fresh", "Woody", "Amber"]
    */
 
-  let profiles = Array.isArray(meta.profiles)
-    ? meta.profiles
-    : [];
+  let profiles = Array.isArray(meta.profiles) ? meta.profiles : [];
 
   // Clean the profile values.
-  profiles = profiles
-    .map(profile => String(profile).trim())
-    .filter(Boolean);
+  profiles = profiles.map((profile) => String(profile).trim()).filter(Boolean);
 
   // ============================================
   // PROFILE DISPLAY
@@ -1498,11 +894,13 @@ function openFragranceDetails(productId) {
 
   const profileHTML = profiles.length
     ? profiles
-        .map(profile => `
+        .map(
+          (profile) => `
           <span class="profile-tag">
             ${escapeText(profile)}
           </span>
-        `)
+        `,
+        )
         .join("")
     : `
         <span class="profile-tag">
@@ -1514,29 +912,15 @@ function openFragranceDetails(productId) {
   // LONGEVITY / PROJECTION
   // ============================================
 
-  const longevity = Math.max(
-    1,
-    Math.min(
-      10,
-      Number(meta.longevity) || 7
-    )
-  );
+  const longevity = Math.max(1, Math.min(10, Number(meta.longevity) || 7));
 
-  const projection = Math.max(
-    1,
-    Math.min(
-      10,
-      Number(meta.projection) || 7
-    )
-  );
+  const projection = Math.max(1, Math.min(10, Number(meta.projection) || 7));
 
   // ============================================
   // STRENGTH
   // ============================================
 
-  let strength = String(
-    meta.strength || "moderate"
-  )
+  let strength = String(meta.strength || "moderate")
     .trim()
     .toLowerCase();
 
@@ -1561,11 +945,10 @@ function openFragranceDetails(productId) {
     moderate: "Moderate",
 
     strong: "Bold",
-    bold: "Bold"
+    bold: "Bold",
   };
 
-  strength =
-    strengthMap[strength] || "Moderate";
+  strength = strengthMap[strength] || "Moderate";
 
   // ============================================
   // RENDER PROFILE DETAILS
@@ -1627,11 +1010,7 @@ function openFragranceDetails(productId) {
         <span
           class="profile-fill"
           style="width:${
-            strength === "Subtle"
-              ? 33
-              : strength === "Moderate"
-                ? 66
-                : 100
+            strength === "Subtle" ? 33 : strength === "Moderate" ? 66 : 100
           }%"
         ></span>
       </span>
@@ -1648,9 +1027,7 @@ function openFragranceDetails(productId) {
   // DAY / NIGHT
   // ============================================
 
-  const time = Array.isArray(meta.time)
-    ? meta.time
-    : [];
+  const time = Array.isArray(meta.time) ? meta.time : [];
 
   fragranceDayNight.innerHTML = `
     <span>
@@ -1668,193 +1045,90 @@ function openFragranceDetails(productId) {
 
   fragranceModal.classList.add("show");
 
-  fragranceModal.setAttribute(
-    "aria-hidden",
-    "false"
-  );
+  fragranceModal.setAttribute("aria-hidden", "false");
 
   document.body.style.overflow = "hidden";
 }
-
 
 // ============================================================
 // CLOSE FRAGRANCE DETAILS
 // ============================================================
 
 function closeFragranceDetails() {
+  fragranceModal.classList.remove("show");
 
-  fragranceModal.classList.remove(
-    "show"
-  );
+  fragranceModal.setAttribute("aria-hidden", "true");
 
-  fragranceModal.setAttribute(
-    "aria-hidden",
-    "true"
-  );
-
-  document.body.style.overflow =
-    "";
+  document.body.style.overflow = "";
 }
 
+fragranceClose.addEventListener("click", closeFragranceDetails);
 
-fragranceClose.addEventListener(
-  "click",
-  closeFragranceDetails
-);
-
-
-fragranceModal.addEventListener(
-  "click",
-  e => {
-
-    if (
-      e.target ===
-      fragranceModal
-    ) {
-
-      closeFragranceDetails();
-
-    }
-
+fragranceModal.addEventListener("click", (e) => {
+  if (e.target === fragranceModal) {
+    closeFragranceDetails();
   }
-);
+});
 
-
-document.addEventListener(
-  "keydown",
-  e => {
-
-    if (
-      e.key === "Escape" &&
-      fragranceModal.classList.contains(
-        "show"
-      )
-    ) {
-
-      closeFragranceDetails();
-
-    }
-
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && fragranceModal.classList.contains("show")) {
+    closeFragranceDetails();
   }
-);
-
+});
 
 // ============================================================
 // CATEGORY TABS
 // ============================================================
 
-tabs.forEach(
-  tab => {
+tabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    tabs.forEach((t) => t.classList.remove("active"));
 
-    tab.addEventListener(
-      "click",
-      () => {
+    tab.classList.add("active");
 
-        tabs.forEach(
-          t =>
-            t.classList.remove(
-              "active"
-            )
-        );
+    activeCat = tab.dataset.cat;
 
-        tab.classList.add(
-          "active"
-        );
+    renderCarousel(activeCat);
 
-        activeCat =
-          tab.dataset.cat;
-
-        renderCarousel(
-          activeCat
-        );
-
-        requestAnimationFrame(
-          updateCarouselArrows
-        );
-
-      }
-    );
-
-  }
-);
-
+    requestAnimationFrame(updateCarouselArrows);
+  });
+});
 
 // ============================================================
 // CAROUSEL CLICK EVENTS
 // ============================================================
 
-carousel.addEventListener(
-  "click",
-  e => {
+carousel.addEventListener("click", (e) => {
+  const wish = e.target.closest(".wishlist-btn");
 
-    const wish =
-      e.target.closest(
-        ".wishlist-btn"
-      );
+  if (wish) {
+    toggleFavorite(wish.dataset.wishlistId);
 
-
-    if (wish) {
-
-      toggleFavorite(
-        wish.dataset.wishlistId
-      );
-
-      return;
-    }
-
-
-    const detailsBtn =
-      e.target.closest(
-        ".pdetails"
-      );
-
-
-    if (detailsBtn) {
-
-      openFragranceDetails(
-        detailsBtn.dataset.detailsId
-      );
-
-      return;
-    }
-
-
-    const btn =
-      e.target.closest(
-        ".porder"
-      );
-
-
-    if (
-      !btn ||
-      btn.disabled
-    ) {
-      return;
-    }
-
-
-    addToCart(
-      btn.dataset.id,
-      1
-    );
-
-
-    scentSelect.value =
-      btn.dataset.id;
-
-
-    document
-      .getElementById(
-        "order"
-      )
-      .scrollIntoView({
-        behavior:
-          "smooth"
-      });
-
+    return;
   }
-);
 
+  const detailsBtn = e.target.closest(".pdetails");
+
+  if (detailsBtn) {
+    openFragranceDetails(detailsBtn.dataset.detailsId);
+
+    return;
+  }
+
+  const btn = e.target.closest(".porder");
+
+  if (!btn || btn.disabled) {
+    return;
+  }
+
+  addToCart(btn.dataset.id, 1);
+
+  scentSelect.value = btn.dataset.id;
+
+  document.getElementById("order").scrollIntoView({
+    behavior: "smooth",
+  });
+});
 
 // ============================================================
 // INITIAL RENDER
@@ -1864,14 +1138,9 @@ renderScentOptions();
 
 updateWishlistPanel();
 
-renderCarousel(
-  activeCat
-);
+renderCarousel(activeCat);
 
-requestAnimationFrame(
-  updateCarouselArrows
-);
-
+requestAnimationFrame(updateCarouselArrows);
 
 // ============================================================
 // GOOGLE SHEETS DATABASE
@@ -1880,2307 +1149,1020 @@ requestAnimationFrame(
 const GOOGLE_SHEETS_WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
 
-apiClient =
-  new ApiClient(
-    GOOGLE_SHEETS_WEB_APP_URL
-  );
-
+apiClient = new ApiClient(GOOGLE_SHEETS_WEB_APP_URL);
 
 // ============================================================
 // PRODUCT CATALOG SYNC
 // ============================================================
 
 async function loadManagedProducts() {
-
-  if (
-    GOOGLE_SHEETS_WEB_APP_URL.includes(
-      "PASTE_YOUR_"
-    )
-  ) {
+  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
     return;
   }
 
-
   try {
+    const response = await fetch(
+      GOOGLE_SHEETS_WEB_APP_URL + "?action=products",
+      {
+        cache: "no-store",
+      },
+    );
 
-    const response =
-      await fetch(
-        GOOGLE_SHEETS_WEB_APP_URL +
-          "?action=products",
-        {
-          cache:
-            "no-store"
-        }
-      );
+    const result = await response.json();
 
-
-    const result =
-      await response.json();
-
-
-    if (
-      !result.success ||
-      !Array.isArray(
-        result.products
-      )
-    ) {
+    if (!result.success || !Array.isArray(result.products)) {
       return;
     }
 
+    result.products.forEach((remote) => {
+      const existing = catalog.find(remote.id);
 
-    result.products.forEach(
-      remote => {
+      if (existing) {
+        Object.assign(existing, {
+          ...existing,
+          ...remote,
 
-        const existing =
-          catalog.find(
-            remote.id
-          );
+          img: remote.img || existing.img,
 
+          desc: remote.desc || existing.desc,
 
-        if (existing) {
+          descLong: remote.descLong || existing.descLong,
 
-          Object.assign(
-            existing,
-            {
-              ...existing,
-              ...remote,
+          topNotes: remote.topNotes?.length
+            ? remote.topNotes
+            : existing.topNotes,
 
-              img:
-                remote.img ||
-                existing.img,
+          heartNotes: remote.heartNotes?.length
+            ? remote.heartNotes
+            : existing.heartNotes,
 
-              desc:
-                remote.desc ||
-                existing.desc,
+          baseNotes: remote.baseNotes?.length
+            ? remote.baseNotes
+            : existing.baseNotes,
 
-              descLong:
-                remote.descLong ||
-                existing.descLong,
-
-              topNotes:
-                remote.topNotes?.length
-                  ? remote.topNotes
-                  : existing.topNotes,
-
-              heartNotes:
-                remote.heartNotes?.length
-                  ? remote.heartNotes
-                  : existing.heartNotes,
-
-              baseNotes:
-                remote.baseNotes?.length
-                  ? remote.baseNotes
-                  : existing.baseNotes,
-
-              application:
-                remote.application ||
-                existing.application
-            }
-          );
-
-        } else {
-
-          catalog.upsert(
-            remote
-          );
-
-        }
-
-
-        PRODUCT_META[
-          remote.id
-        ] =
-          Object.assign(
-            PRODUCT_META[
-              remote.id
-            ] || {},
-
-            {
-
-              profiles:
-                remote.profiles ||
-                [],
-
-              occasion:
-                remote.occasion ||
-                "",
-
-
-              // Convert old values:
-              // light  -> subtle
-              // strong -> bold
-
-              strength:
-                (
-                  {
-                    light:
-                      "subtle",
-
-                    strong:
-                      "bold"
-                  }[
-                    String(
-                      remote.strength ||
-                      "moderate"
-                    ).toLowerCase()
-                  ] ||
-                  String(
-                    remote.strength ||
-                    "moderate"
-                  )
-                ).toLowerCase(),
-
-
-              longevity:
-                remote.longevity ||
-                7,
-
-              projection:
-                remote.projection ||
-                7,
-
-              time:
-                remote.time ||
-                [],
-
-              badges:
-                remote.badges ||
-                [],
-
-              sortOrder:
-                remote.sortOrder ||
-                0
-
-            }
-          );
-
+          application: remote.application || existing.application,
+        });
+      } else {
+        catalog.upsert(remote);
       }
-    );
 
+      PRODUCT_META[remote.id] = Object.assign(PRODUCT_META[remote.id] || {}, {
+        profiles: Array.isArray(remote.profiles)
+          ? remote.profiles
+          : String(remote.profiles || "")
+              .split(",")
+              .map((x) => x.trim())
+              .filter(Boolean),
+
+        occasion: remote.occasion || "",
+
+        strength: remote.strength || "moderate",
+
+        longevity: Number(remote.longevity) || 7,
+
+        projection: Number(remote.projection) || 7,
+
+        time: Array.isArray(remote.time)
+          ? remote.time
+          : String(remote.time || "")
+              .split(",")
+              .map((x) => x.trim().toLowerCase())
+              .filter(Boolean),
+
+        badges: Array.isArray(remote.badges)
+          ? remote.badges
+          : String(remote.badges || "")
+              .split(",")
+              .map((x) => x.trim())
+              .filter(Boolean),
+
+        sortOrder: Number(remote.sortOrder) || 0,
+      });
+    });
 
     renderScentOptions();
 
     renderReviewScentOptions();
 
-    renderCarousel(
-      activeCat
-    );
+    renderCarousel(activeCat);
 
     renderCart();
 
     syncQuantity();
-
-
   } catch (error) {
-
-    console.warn(
-      "Managed catalog unavailable; using built-in catalog.",
-      error
-    );
-
+    console.warn("Managed catalog unavailable; using built-in catalog.", error);
   }
 }
 
-
 loadManagedProducts();
-
 
 // ============================================================
 // CUSTOMER REVIEWS
 // ============================================================
 
-const reviewForm =
-  document.getElementById(
-    "reviewForm"
-  );
+const reviewForm = document.getElementById("reviewForm");
 
-const reviewScent =
-  document.getElementById(
-    "reviewScent"
-  );
+const reviewScent = document.getElementById("reviewScent");
 
-const reviewRating =
-  document.getElementById(
-    "reviewRating"
-  );
+const reviewRating = document.getElementById("reviewRating");
 
-const starButtons =
-  document.querySelectorAll(
-    "#starSelect button"
-  );
+const starButtons = document.querySelectorAll("#starSelect button");
 
-const reviewSubmit =
-  document.getElementById(
-    "reviewSubmit"
-  );
+const reviewSubmit = document.getElementById("reviewSubmit");
 
-const reviewStatus =
-  document.getElementById(
-    "reviewStatus"
-  );
+const reviewStatus = document.getElementById("reviewStatus");
 
-const reviewsCarousel =
-  document.getElementById(
-    "reviewsCarousel"
-  );
+const reviewsCarousel = document.getElementById("reviewsCarousel");
 
-const reviewsLoading =
-  document.getElementById(
-    "reviewsLoading"
-  );
+const reviewsLoading = document.getElementById("reviewsLoading");
 
-const reviewsEmpty =
-  document.getElementById(
-    "reviewsEmpty"
-  );
-
+const reviewsEmpty = document.getElementById("reviewsEmpty");
 
 function renderReviewScentOptions() {
-
   reviewScent.innerHTML =
     '<option value="">Choose a scent</option>' +
-
     catalog
       .all()
-      .map(
-        p =>
-          `<option value="${p.id}">${p.name}</option>`
-      )
+      .map((p) => `<option value="${p.id}">${p.name}</option>`)
       .join("");
 }
 
+function setRating(rating) {
+  reviewRating.value = String(rating);
 
-function setRating(
-  rating
-) {
-
-  reviewRating.value =
-    String(rating);
-
-  starButtons.forEach(
-    btn => {
-
-      btn.classList.toggle(
-        "active",
-        Number(
-          btn.dataset.rating
-        ) <= rating
-      );
-
-    }
-  );
+  starButtons.forEach((btn) => {
+    btn.classList.toggle("active", Number(btn.dataset.rating) <= rating);
+  });
 }
 
-
-starButtons.forEach(
-  btn => {
-
-    btn.addEventListener(
-      "click",
-      () =>
-        setRating(
-          Number(
-            btn.dataset.rating
-          )
-        )
-    );
-
-  }
-);
-
+starButtons.forEach((btn) => {
+  btn.addEventListener("click", () => setRating(Number(btn.dataset.rating)));
+});
 
 setRating(5);
 
 renderReviewScentOptions();
 
+function showReviewStatus(message, type) {
+  reviewStatus.textContent = message;
 
-function showReviewStatus(
-  message,
-  type
-) {
-
-  reviewStatus.textContent =
-    message;
-
-  reviewStatus.className =
-    "review-status show " +
-    type;
+  reviewStatus.className = "review-status show " + type;
 }
 
-
-function escapeText(
-  value
-) {
-
-  return value == null
-    ? ""
-    : String(value);
+function escapeText(value) {
+  return value == null ? "" : String(value);
 }
-
 
 // ============================================================
 // RENDER REVIEWS
 // ============================================================
 
-function renderReviews(
-  reviews
-) {
+function renderReviews(reviews) {
+  reviewsLoading.style.display = "none";
 
-  reviewsLoading.style.display =
-    "none";
+  Object.keys(reviewStats).forEach((k) => delete reviewStats[k]);
 
+  (reviews || []).forEach((r) => {
+    const p = catalog
+      .all()
+      .find(
+        (x) => x.name.toLowerCase() === String(r.scent || "").toLowerCase(),
+      );
 
-  Object.keys(
-    reviewStats
-  ).forEach(
-    k =>
-      delete reviewStats[k]
-  );
-
-
-  (
-    reviews || []
-  ).forEach(
-    r => {
-
-      const p =
-        catalog
-          .all()
-          .find(
-            x =>
-              x.name.toLowerCase() ===
-              String(
-                r.scent || ""
-              ).toLowerCase()
-          );
-
-
-      if (!p) {
-        return;
-      }
-
-
-      reviewStats[p.id] ||=
-        {
-          sum: 0,
-          count: 0,
-          avg: 0
-        };
-
-
-      reviewStats[p.id].sum +=
-        Number(
-          r.rating
-        ) || 0;
-
-
-      reviewStats[p.id].count +=
-        1;
-
-
-      reviewStats[p.id].avg =
-        reviewStats[p.id].sum /
-        reviewStats[p.id].count;
-
+    if (!p) {
+      return;
     }
-  );
 
+    reviewStats[p.id] ||= {
+      sum: 0,
+      count: 0,
+      avg: 0,
+    };
 
-  renderCarousel(
-    activeCat
-  );
+    reviewStats[p.id].sum += Number(r.rating) || 0;
 
+    reviewStats[p.id].count += 1;
 
-  reviewsCarousel.innerHTML =
-    "";
+    reviewStats[p.id].avg = reviewStats[p.id].sum / reviewStats[p.id].count;
+  });
 
+  renderCarousel(activeCat);
 
-  if (
-    !reviews ||
-    !reviews.length
-  ) {
+  reviewsCarousel.innerHTML = "";
 
-    reviewsCarousel.style.display =
-      "none";
+  if (!reviews || !reviews.length) {
+    reviewsCarousel.style.display = "none";
 
-    reviewsEmpty.style.display =
-      "block";
+    reviewsEmpty.style.display = "block";
 
     return;
   }
 
+  reviewsEmpty.style.display = "none";
 
-  reviewsEmpty.style.display =
-    "none";
+  reviewsCarousel.style.display = "flex";
 
-  reviewsCarousel.style.display =
-    "flex";
+  reviews.forEach((review) => {
+    const card = document.createElement("article");
 
+    card.className = "review-card";
 
-  reviews.forEach(
-    review => {
+    const photo = document.createElement("div");
 
-      const card =
-        document.createElement(
-          "article"
-        );
+    photo.className = "review-photo";
 
-      card.className =
-        "review-card";
+    if (review.photoUrl) {
+      const img = document.createElement("img");
 
+      img.src = review.photoUrl;
 
-      const photo =
-        document.createElement(
-          "div"
-        );
+      img.alt = "Customer photo for " + escapeText(review.scent);
 
-      photo.className =
-        "review-photo";
+      img.loading = "lazy";
 
+      photo.appendChild(img);
+    } else {
+      photo.classList.add("empty");
 
-      if (
-        review.photoUrl
-      ) {
-
-        const img =
-          document.createElement(
-            "img"
-          );
-
-        img.src =
-          review.photoUrl;
-
-        img.alt =
-          "Customer photo for " +
-          escapeText(
-            review.scent
-          );
-
-        img.loading =
-          "lazy";
-
-        photo.appendChild(
-          img
-        );
-
-      } else {
-
-        photo.classList.add(
-          "empty"
-        );
-
-        photo.textContent =
-          "CUSTOMER REVIEW";
-
-      }
-
-
-      const body =
-        document.createElement(
-          "div"
-        );
-
-      body.className =
-        "review-body";
-
-
-      const stars =
-        document.createElement(
-          "div"
-        );
-
-      stars.className =
-        "review-stars";
-
-
-      const rating =
-        Math.max(
-          1,
-          Math.min(
-            5,
-            Number(
-              review.rating
-            ) || 5
-          )
-        );
-
-
-      stars.textContent =
-        "★".repeat(
-          rating
-        ) +
-        "☆".repeat(
-          5 - rating
-        );
-
-
-      const text =
-        document.createElement(
-          "p"
-        );
-
-      text.className =
-        "review-text";
-
-      text.textContent =
-        review.review ||
-        "";
-
-
-      const meta =
-        document.createElement(
-          "div"
-        );
-
-      meta.className =
-        "review-meta";
-
-
-      const name =
-        document.createElement(
-          "span"
-        );
-
-      name.className =
-        "review-name";
-
-      name.textContent =
-        review.customerName ||
-        review.name ||
-        "Customer";
-
-
-      const scent =
-        document.createElement(
-          "span"
-        );
-
-      scent.className =
-        "review-scent";
-
-      scent.textContent =
-        (
-          review.scent ||
-          ""
-        ).toUpperCase();
-
-
-      meta.append(
-        name,
-        scent
-      );
-
-
-      body.append(
-        stars,
-        text,
-        meta
-      );
-
-
-      card.append(
-        photo,
-        body
-      );
-
-
-      reviewsCarousel.appendChild(
-        card
-      );
-
+      photo.textContent = "CUSTOMER REVIEW";
     }
-  );
-}
 
+    const body = document.createElement("div");
+
+    body.className = "review-body";
+
+    const stars = document.createElement("div");
+
+    stars.className = "review-stars";
+
+    const rating = Math.max(1, Math.min(5, Number(review.rating) || 5));
+
+    stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
+
+    const text = document.createElement("p");
+
+    text.className = "review-text";
+
+    text.textContent = review.review || "";
+
+    const meta = document.createElement("div");
+
+    meta.className = "review-meta";
+
+    const name = document.createElement("span");
+
+    name.className = "review-name";
+
+    name.textContent = review.customerName || review.name || "Customer";
+
+    const scent = document.createElement("span");
+
+    scent.className = "review-scent";
+
+    scent.textContent = (review.scent || "").toUpperCase();
+
+    meta.append(name, scent);
+
+    body.append(stars, text, meta);
+
+    card.append(photo, body);
+
+    reviewsCarousel.appendChild(card);
+  });
+}
 
 // ============================================================
 // LOAD REVIEWS
 // ============================================================
 
 function loadReviews() {
-
-  if (
-    GOOGLE_SHEETS_WEB_APP_URL.includes(
-      "PASTE_YOUR_"
-    )
-  ) {
-
+  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
     reviewsLoading.textContent =
       "Connect the Google Apps Script URL to load customer reviews.";
 
     return;
   }
 
+  const callbackName = "__auraReviews_" + Date.now();
 
-  const callbackName =
-    "__auraReviews_" +
-    Date.now();
-
-
-  window[callbackName] =
-    function(data) {
-
-      try {
-
-        if (
-          !data ||
-          !data.success
-        ) {
-
-          throw new Error(
-            data?.message ||
-            "Unable to load reviews."
-          );
-
-        }
-
-
-        renderReviews(
-          data.reviews ||
-          []
-        );
-
-
-      } catch (err) {
-
-        reviewsLoading.textContent =
-          "Customer reviews are temporarily unavailable.";
-
-      } finally {
-
-        cleanup();
-
+  window[callbackName] = function (data) {
+    try {
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Unable to load reviews.");
       }
 
-    };
+      renderReviews(data.reviews || []);
+    } catch (err) {
+      reviewsLoading.textContent =
+        "Customer reviews are temporarily unavailable.";
+    } finally {
+      cleanup();
+    }
+  };
 
+  const script = document.createElement("script");
 
-  const script =
-    document.createElement(
-      "script"
-    );
+  let finished = false;
 
+  const cleanup = () => {
+    if (finished) {
+      return;
+    }
 
-  let finished =
-    false;
+    finished = true;
 
+    delete window[callbackName];
 
-  const cleanup =
-    () => {
-
-      if (finished) {
-        return;
-      }
-
-      finished =
-        true;
-
-      delete window[
-        callbackName
-      ];
-
-      script.remove();
-
-    };
-
+    script.remove();
+  };
 
   script.src =
     GOOGLE_SHEETS_WEB_APP_URL +
-    (
-      GOOGLE_SHEETS_WEB_APP_URL.includes(
-        "?"
-      )
-        ? "&"
-        : "?"
-    ) +
+    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
     "action=reviews&callback=" +
-    encodeURIComponent(
-      callbackName
-    );
+    encodeURIComponent(callbackName);
 
+  script.onerror = () => {
+    reviewsLoading.textContent =
+      "Customer reviews are temporarily unavailable.";
 
-  script.onerror =
-    () => {
+    cleanup();
+  };
 
-      reviewsLoading.textContent =
-        "Customer reviews are temporarily unavailable.";
-
-      cleanup();
-
-    };
-
-
-  document.body.appendChild(
-    script
-  );
+  document.body.appendChild(script);
 }
-
 
 // ============================================================
 // COMPRESS REVIEW IMAGE
 // ============================================================
 
-function compressReviewImage(
-  file
-) {
+function compressReviewImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
+    reader.onload = () => {
+      const img = new Image();
 
-      const reader =
-        new FileReader();
+      img.onload = () => {
+        const maxSide = 1200;
 
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
 
-      reader.onload =
-        () => {
+        const canvas = document.createElement("canvas");
 
-          const img =
-            new Image();
+        canvas.width = Math.max(1, Math.round(img.width * scale));
 
+        canvas.height = Math.max(1, Math.round(img.height * scale));
 
-          img.onload =
-            () => {
+        const ctx = canvas.getContext("2d");
 
-              const maxSide =
-                1200;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
 
-              const scale =
-                Math.min(
-                  1,
-                  maxSide /
-                    Math.max(
-                      img.width,
-                      img.height
-                    )
-                );
+      img.onerror = () =>
+        reject(new Error("The selected image could not be read."));
 
+      img.src = reader.result;
+    };
 
-              const canvas =
-                document.createElement(
-                  "canvas"
-                );
+    reader.onerror = () =>
+      reject(new Error("The selected image could not be read."));
 
-
-              canvas.width =
-                Math.max(
-                  1,
-                  Math.round(
-                    img.width *
-                    scale
-                  )
-                );
-
-
-              canvas.height =
-                Math.max(
-                  1,
-                  Math.round(
-                    img.height *
-                    scale
-                  )
-                );
-
-
-              const ctx =
-                canvas.getContext(
-                  "2d"
-                );
-
-
-              ctx.drawImage(
-                img,
-                0,
-                0,
-                canvas.width,
-                canvas.height
-              );
-
-
-              resolve(
-                canvas.toDataURL(
-                  "image/jpeg",
-                  0.78
-                )
-              );
-
-            };
-
-
-          img.onerror =
-            () =>
-              reject(
-                new Error(
-                  "The selected image could not be read."
-                )
-              );
-
-
-          img.src =
-            reader.result;
-
-        };
-
-
-      reader.onerror =
-        () =>
-          reject(
-            new Error(
-              "The selected image could not be read."
-            )
-          );
-
-
-      reader.readAsDataURL(
-        file
-      );
-
-    }
-  );
+    reader.readAsDataURL(file);
+  });
 }
-
 
 // ============================================================
 // REVIEW FORM
 // ============================================================
 
-reviewForm.addEventListener(
-  "submit",
-  async function(e) {
+reviewForm.addEventListener("submit", async function (e) {
+  e.preventDefault();
 
-    e.preventDefault();
+  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+    showReviewStatus("Add your Google Apps Script Web App URL first.", "error");
 
+    return;
+  }
 
-    if (
-      GOOGLE_SHEETS_WEB_APP_URL.includes(
-        "PASTE_YOUR_"
-      )
-    ) {
+  const file = document.getElementById("reviewPhoto").files[0];
 
-      showReviewStatus(
-        "Add your Google Apps Script Web App URL first.",
-        "error"
+  if (!file) {
+    showReviewStatus("Please attach a photo with your review.", "error");
+
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    showReviewStatus("Please upload an image file.", "error");
+
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    showReviewStatus("Please choose an image smaller than 5 MB.", "error");
+
+    return;
+  }
+
+  reviewSubmit.disabled = true;
+
+  reviewSubmit.textContent = "UPLOADING…";
+
+  showReviewStatus("Preparing your photo and review…", "success");
+
+  try {
+    const photoData = await compressReviewImage(file);
+
+    if (photoData.length > 1600000) {
+      throw new Error(
+        "The photo is still too large after compression. Please choose another image.",
       );
-
-      return;
     }
 
+    const selectedScent = catalog.all().find((p) => p.id === reviewScent.value);
 
-    const file =
-      document.getElementById(
-        "reviewPhoto"
-      ).files[0];
+    const payload = new URLSearchParams({
+      action: "submitReview",
 
+      name: document.getElementById("reviewName").value.trim(),
 
-    if (!file) {
+      scent: selectedScent ? selectedScent.name : reviewScent.value,
 
-      showReviewStatus(
-        "Please attach a photo with your review.",
-        "error"
-      );
+      scentId: reviewScent.value,
 
-      return;
+      rating: reviewRating.value,
+
+      review: document.getElementById("reviewText").value.trim(),
+
+      photo: photoData,
+    });
+
+    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+
+      body: payload.toString(),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.message || "Unable to submit review.");
     }
-
-
-    if (
-      !file.type.startsWith(
-        "image/"
-      )
-    ) {
-
-      showReviewStatus(
-        "Please upload an image file.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    if (
-      file.size >
-      5 * 1024 * 1024
-    ) {
-
-      showReviewStatus(
-        "Please choose an image smaller than 5 MB.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    reviewSubmit.disabled =
-      true;
-
-    reviewSubmit.textContent =
-      "UPLOADING…";
-
 
     showReviewStatus(
-      "Preparing your photo and review…",
-      "success"
+      "Thank you! Your review was submitted and will appear after approval.",
+      "success",
     );
 
+    reviewForm.reset();
 
-    try {
+    setRating(5);
 
-      const photoData =
-        await compressReviewImage(
-          file
-        );
+    renderReviewScentOptions();
+  } catch (err) {
+    console.error(err);
 
+    showReviewStatus(
+      err.message || "Unable to submit your review. Please try again.",
+      "error",
+    );
+  } finally {
+    reviewSubmit.disabled = false;
 
-      if (
-        photoData.length >
-        1600000
-      ) {
-
-        throw new Error(
-          "The photo is still too large after compression. Please choose another image."
-        );
-
-      }
-
-
-      const selectedScent =
-        catalog
-          .all()
-          .find(
-            p =>
-              p.id ===
-              reviewScent.value
-          );
-
-
-      const payload =
-        new URLSearchParams({
-
-          action:
-            "submitReview",
-
-          name:
-            document
-              .getElementById(
-                "reviewName"
-              )
-              .value
-              .trim(),
-
-          scent:
-            selectedScent
-              ? selectedScent.name
-              : reviewScent.value,
-
-          scentId:
-            reviewScent.value,
-
-          rating:
-            reviewRating.value,
-
-          review:
-            document
-              .getElementById(
-                "reviewText"
-              )
-              .value
-              .trim(),
-
-          photo:
-            photoData
-
-        });
-
-
-      const response =
-        await fetch(
-          GOOGLE_SHEETS_WEB_APP_URL,
-          {
-
-            method:
-              "POST",
-
-            headers: {
-              "Content-Type":
-                "application/x-www-form-urlencoded;charset=UTF-8"
-            },
-
-            body:
-              payload.toString()
-
-          }
-        );
-
-
-      const result =
-        await response.json();
-
-
-      if (
-        !result.success
-      ) {
-
-        throw new Error(
-          result.message ||
-          "Unable to submit review."
-        );
-
-      }
-
-
-      showReviewStatus(
-        "Thank you! Your review was submitted and will appear after approval.",
-        "success"
-      );
-
-
-      reviewForm.reset();
-
-      setRating(5);
-
-      renderReviewScentOptions();
-
-
-    } catch (err) {
-
-      console.error(
-        err
-      );
-
-
-      showReviewStatus(
-        err.message ||
-          "Unable to submit your review. Please try again.",
-        "error"
-      );
-
-
-    } finally {
-
-      reviewSubmit.disabled =
-        false;
-
-      reviewSubmit.textContent =
-        "SUBMIT REVIEW";
-
-    }
-
+    reviewSubmit.textContent = "SUBMIT REVIEW";
   }
-);
-
+});
 
 loadReviews();
-
 
 // ============================================================
 // FIND YOUR SCENT QUIZ
 // ============================================================
 
-const quizAnswers =
-  {};
-
+const quizAnswers = {};
 
 // ------------------------------------------------------------
 // QUIZ OPTION SELECTION
 // ------------------------------------------------------------
 
-document
-  .querySelectorAll(
-    ".quiz-options"
-  )
-  .forEach(
-    group => {
+document.querySelectorAll(".quiz-options").forEach((group) => {
+  group.addEventListener("click", (e) => {
+    const btn = e.target.closest(".quiz-option");
 
-      group.addEventListener(
-        "click",
-        e => {
-
-          const btn =
-            e.target.closest(
-              ".quiz-option"
-            );
-
-
-          if (!btn) {
-            return;
-          }
-
-
-          const q =
-            group.dataset.question;
-
-
-          let value =
-            btn.dataset.value ||
-            "";
-
-
-          // Strength values are normalized
-          // to:
-          //
-          // subtle
-          // moderate
-          // bold
-
-          if (
-            q === "strength"
-          ) {
-
-            value =
-              normalizeStrength(
-                value
-              );
-
-          }
-
-
-          quizAnswers[q] =
-            value;
-
-
-          group
-            .querySelectorAll(
-              ".quiz-option"
-            )
-            .forEach(
-              b =>
-                b.classList.toggle(
-                  "active",
-                  b === btn
-                )
-            );
-
-        }
-      );
-
+    if (!btn) {
+      return;
     }
-  );
 
+    const q = group.dataset.question;
+
+    let value = btn.dataset.value || "";
+
+    // Strength values are normalized
+    // to:
+    //
+    // subtle
+    // moderate
+    // bold
+
+    if (q === "strength") {
+      value = normalizeStrength(value);
+    }
+
+    quizAnswers[q] = value;
+
+    group
+      .querySelectorAll(".quiz-option")
+      .forEach((b) => b.classList.toggle("active", b === btn));
+  });
+});
 
 // ------------------------------------------------------------
 // FIND SCENT
 // ------------------------------------------------------------
 
-document
-  .getElementById(
-    "findScentBtn"
-  )
-  .addEventListener(
-    "click",
-    () => {
+document.getElementById("findScentBtn").addEventListener("click", () => {
+  const scores = catalog
+    .all()
+    .map((p) => {
+      const meta = PRODUCT_META[p.id] || {};
 
-      const scores =
-        catalog
-          .all()
-          .map(
-            p => {
+      let score = 0;
 
-              const meta =
-                PRODUCT_META[
-                  p.id
-                ] || {};
+      // ------------------------------------------------
+      // PROFILE MATCH
+      // ------------------------------------------------
 
+      const productProfiles = Array.isArray(meta.profiles)
+        ? meta.profiles.map((profile) => String(profile).trim().toLowerCase())
+        : String(meta.profiles || "")
+            .split(",")
+            .map((profile) => profile.trim().toLowerCase())
+            .filter(Boolean);
 
-              let score =
-                0;
-
-
-              // ------------------------------------------------
-              // PROFILE MATCH
-              // ------------------------------------------------
-
-              const productProfiles =
-                Array.isArray(
-                  meta.profiles
-                )
-
-                  ? meta.profiles.map(
-                      profile =>
-                        String(
-                          profile
-                        )
-                          .trim()
-                          .toLowerCase()
-                    )
-
-                  : String(
-                      meta.profiles ||
-                      ""
-                    )
-                      .split(",")
-                      .map(
-                        profile =>
-                          profile
-                            .trim()
-                            .toLowerCase()
-                      )
-                      .filter(
-                        Boolean
-                      );
-
-
-              if (
-                quizAnswers.profile &&
-                productProfiles.includes(
-                  String(
-                    quizAnswers.profile
-                  )
-                    .trim()
-                    .toLowerCase()
-                )
-              ) {
-
-                score +=
-                  4;
-
-              }
-
-
-              // ------------------------------------------------
-              // OCCASION MATCH
-              // ------------------------------------------------
-
-              const productOccasions =
-                Array.isArray(
-                  meta.occasion
-                )
-
-                  ? meta.occasion.map(
-                      value =>
-                        String(
-                          value
-                        )
-                          .trim()
-                          .toLowerCase()
-                    )
-
-                  : String(
-                      meta.occasion ||
-                      ""
-                    )
-                      .split(",")
-                      .map(
-                        value =>
-                          value
-                            .trim()
-                            .toLowerCase()
-                      )
-                      .filter(
-                        Boolean
-                      );
-
-
-              if (
-                quizAnswers.occasion &&
-                productOccasions.includes(
-                  String(
-                    quizAnswers.occasion
-                  )
-                    .trim()
-                    .toLowerCase()
-                )
-              ) {
-
-                score +=
-                  3;
-
-              }
-
-
-              // ------------------------------------------------
-              // STRENGTH MATCH
-              // ------------------------------------------------
-
-              const productStrength =
-                normalizeStrength(
-                  meta.strength
-                );
-
-
-              const selectedStrength =
-                normalizeStrength(
-                  quizAnswers.strength
-                );
-
-
-              if (
-                quizAnswers.strength &&
-                productStrength ===
-                  selectedStrength
-              ) {
-
-                score +=
-                  2;
-
-              }
-
-
-              return {
-                p,
-                score
-              };
-
-            }
-          )
-          .sort(
-            (a, b) =>
-              b.score -
-              a.score
-          );
-
-
-      const winner =
-        scores[0]?.p ||
-        catalog.all()[0];
-
-
-      if (!winner) {
-        return;
+      if (
+        quizAnswers.profile &&
+        productProfiles.includes(
+          String(quizAnswers.profile).trim().toLowerCase(),
+        )
+      ) {
+        score += 4;
       }
 
+      // ------------------------------------------------
+      // OCCASION MATCH
+      // ------------------------------------------------
 
-      document
-        .getElementById(
-          "quizResultName"
+      const productOccasions = Array.isArray(meta.occasion)
+        ? meta.occasion.map((value) => String(value).trim().toLowerCase())
+        : String(meta.occasion || "")
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter(Boolean);
+
+      if (
+        quizAnswers.occasion &&
+        productOccasions.includes(
+          String(quizAnswers.occasion).trim().toLowerCase(),
         )
-        .textContent =
-        winner.name;
+      ) {
+        score += 3;
+      }
 
+      // ------------------------------------------------
+      // STRENGTH MATCH
+      // ------------------------------------------------
 
-      document
-        .getElementById(
-          "quizResultText"
-        )
-        .textContent =
-        winner.desc +
-        " Best suited for: " +
-        (
-          winner.occasion ||
-          "versatile wear"
-        ) +
-        ".";
+      const productStrength = normalizeStrength(meta.strength);
 
+      const selectedStrength = normalizeStrength(quizAnswers.strength);
 
-      document
-        .getElementById(
-          "quizResult"
-        )
-        .classList.add(
-          "show"
-        );
+      if (quizAnswers.strength && productStrength === selectedStrength) {
+        score += 2;
+      }
 
+      return {
+        p,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
 
-      document
-        .getElementById(
-          "quizOrderBtn"
-        )
-        .dataset.id =
-        winner.id;
+  const winner = scores[0]?.p || catalog.all()[0];
 
-    }
-  );
+  if (!winner) {
+    return;
+  }
 
+  document.getElementById("quizResultName").textContent = winner.name;
+
+  document.getElementById("quizResultText").textContent =
+    winner.desc +
+    " Best suited for: " +
+    (winner.occasion || "versatile wear") +
+    ".";
+
+  document.getElementById("quizResult").classList.add("show");
+
+  document.getElementById("quizOrderBtn").dataset.id = winner.id;
+});
 
 // ============================================================
 // QUIZ ORDER BUTTON
 // ============================================================
 
-document
-  .getElementById(
-    "quizOrderBtn"
-  )
-  .addEventListener(
-    "click",
-    e => {
+document.getElementById("quizOrderBtn").addEventListener("click", (e) => {
+  scentSelect.value = e.currentTarget.dataset.id;
 
-      scentSelect.value =
-        e.currentTarget.dataset.id;
-
-
-      document
-        .getElementById(
-          "order"
-        )
-        .scrollIntoView({
-          behavior:
-            "smooth"
-        });
-
-    }
-  );
-
+  document.getElementById("order").scrollIntoView({
+    behavior: "smooth",
+  });
+});
 
 // ============================================================
 // BUILD YOUR DUO
 // ============================================================
 
-const duoOne =
-  document.getElementById(
-    "duoOne"
+const duoOne = document.getElementById("duoOne");
+
+const duoTwo = document.getElementById("duoTwo");
+
+const duoTotal = document.getElementById("duoTotal");
+
+[duoOne, duoTwo].forEach((select) => {
+  select.innerHTML = catalog
+    .all()
+    .map((p) => `<option value="${p.id}">${p.name}</option>`)
+    .join("");
+
+  select.addEventListener(
+    "change",
+    () =>
+      (duoTotal.textContent = `2 bottles • ₱${(
+        PRODUCT_PRICE * 2
+      ).toLocaleString()}`),
   );
+});
 
-const duoTwo =
-  document.getElementById(
-    "duoTwo"
-  );
+document.getElementById("duoOrderBtn").addEventListener("click", () => {
+  const names = [duoOne.value, duoTwo.value];
 
-const duoTotal =
-  document.getElementById(
-    "duoTotal"
-  );
+  scentSelect.value = names[0];
 
+  document.getElementById("qtyNumber").value = 2;
 
-[
-  duoOne,
-  duoTwo
-].forEach(
-  select => {
+  syncQuantity();
 
-    select.innerHTML =
-      catalog
-        .all()
-        .map(
-          p =>
-            `<option value="${p.id}">${p.name}</option>`
-        )
-        .join("");
+  document.getElementById("notes").value =
+    "Duo: " + names.map((id) => catalog.find(id)?.name || id).join(" + ");
 
-
-    select.addEventListener(
-      "change",
-      () =>
-        duoTotal.textContent =
-          `2 bottles • ₱${(
-            PRODUCT_PRICE * 2
-          ).toLocaleString()}`
-    );
-
-  }
-);
-
-
-document
-  .getElementById(
-    "duoOrderBtn"
-  )
-  .addEventListener(
-    "click",
-    () => {
-
-      const names =
-        [
-          duoOne.value,
-          duoTwo.value
-        ];
-
-
-      scentSelect.value =
-        names[0];
-
-
-      document
-        .getElementById(
-          "qtyNumber"
-        )
-        .value =
-        2;
-
-
-      syncQuantity();
-
-
-      document
-        .getElementById(
-          "notes"
-        )
-        .value =
-        "Duo: " +
-        names
-          .map(
-            id =>
-              catalog.find(
-                id
-              )?.name ||
-              id
-          )
-          .join(
-            " + "
-          );
-
-
-      document
-        .getElementById(
-          "order"
-        )
-        .scrollIntoView({
-          behavior:
-            "smooth"
-        });
-
-    }
-  );
-
+  document.getElementById("order").scrollIntoView({
+    behavior: "smooth",
+  });
+});
 
 // ============================================================
 // ORDER FORM
 // ============================================================
 
-const form =
-  document.getElementById(
-    "orderForm"
-  );
+const form = document.getElementById("orderForm");
 
-const summaryEmpty =
-  document.getElementById(
-    "summaryEmpty"
-  );
+const summaryEmpty = document.getElementById("summaryEmpty");
 
-const summaryLines =
-  document.getElementById(
-    "summaryLines"
-  );
+const summaryLines = document.getElementById("summaryLines");
 
-const summaryActions =
-  document.getElementById(
-    "summaryActions"
-  );
+const summaryActions = document.getElementById("summaryActions");
 
-const copyBtn =
-  document.getElementById(
-    "copyBtn"
-  );
+const copyBtn = document.getElementById("copyBtn");
 
-const qtyNumber =
-  document.getElementById(
-    "qtyNumber"
-  );
+const qtyNumber = document.getElementById("qtyNumber");
 
-const qtyHidden =
-  document.getElementById(
-    "qty"
-  );
+const qtyHidden = document.getElementById("qty");
 
-const liveTotal =
-  document.getElementById(
-    "liveTotal"
-  );
-
+const liveTotal = document.getElementById("liveTotal");
 
 // ============================================================
 // QUANTITY
 // ============================================================
 
 function syncQuantity() {
+  let n = Math.max(1, Math.min(10, parseInt(qtyNumber.value || "1", 10)));
 
-  let n =
-    Math.max(
-      1,
-      Math.min(
-        10,
-        parseInt(
-          qtyNumber.value ||
-            "1",
-          10
-        )
-      )
-    );
+  qtyNumber.value = n;
 
+  qtyHidden.value = n + (n === 1 ? " bottle" : " bottles");
 
-  qtyNumber.value =
-    n;
+  const selectedId = scentSelect.value;
 
-
-  qtyHidden.value =
-    n +
-    (
-      n === 1
-        ? " bottle"
-        : " bottles"
-    );
-
-
-  const selectedId =
-    scentSelect.value;
-
-
-  const p =
-    getProductById(
-      selectedId
-    );
-
+  const p = getProductById(selectedId);
 
   liveTotal.textContent =
     "Estimated total: ₱" +
     (
-      (
-        p
-          ? Number(
-              p.price ||
-              PRODUCT_PRICE
-            )
-          : PRODUCT_PRICE
-      ) * n
+      (p ? Number(p.price || PRODUCT_PRICE) : PRODUCT_PRICE) * n
     ).toLocaleString();
-
 
   return n;
 }
 
+document.getElementById("qtyMinus").addEventListener("click", () => {
+  qtyNumber.value = Number(qtyNumber.value || 1) - 1;
 
-document
-  .getElementById(
-    "qtyMinus"
-  )
-  .addEventListener(
-    "click",
-    () => {
+  syncQuantity();
+});
 
-      qtyNumber.value =
-        Number(
-          qtyNumber.value ||
-          1
-        ) - 1;
+document.getElementById("qtyPlus").addEventListener("click", () => {
+  qtyNumber.value = Number(qtyNumber.value || 1) + 1;
 
-      syncQuantity();
+  syncQuantity();
+});
 
-    }
-  );
+qtyNumber.addEventListener("input", syncQuantity);
 
-
-document
-  .getElementById(
-    "qtyPlus"
-  )
-  .addEventListener(
-    "click",
-    () => {
-
-      qtyNumber.value =
-        Number(
-          qtyNumber.value ||
-          1
-        ) + 1;
-
-      syncQuantity();
-
-    }
-  );
-
-
-qtyNumber.addEventListener(
-  "input",
-  syncQuantity
-);
-
-
-scentSelect.addEventListener(
-  "change",
-  syncQuantity
-);
-
+scentSelect.addEventListener("change", syncQuantity);
 
 syncQuantity();
 
 renderCart();
 
-
 // ============================================================
 // SUBMIT STATUS
 // ============================================================
 
-function showSubmitStatus(
-  message,
-  type
-) {
+function showSubmitStatus(message, type) {
+  const status = document.getElementById("submitStatus");
 
-  const status =
-    document.getElementById(
-      "submitStatus"
-    );
+  status.textContent = message;
 
-
-  status.textContent =
-    message;
-
-
-  status.className =
-    "submit-status show " +
-    type;
+  status.className = "submit-status show " + type;
 }
-
 
 // ============================================================
 // ORDER SUBMISSION
 // ============================================================
 
-form.addEventListener(
-  "submit",
-  async function(e) {
+form.addEventListener("submit", async function (e) {
+  e.preventDefault();
 
-    e.preventDefault();
+  const submitBtn = document.getElementById("submitBtn");
 
+  const data = new FormData(form);
 
-    const submitBtn =
-      document.getElementById(
-        "submitBtn"
-      );
-
-
-    const data =
-      new FormData(
-        form
-      );
-
-
-    if (!cart.length) {
-
-      showSubmitStatus(
-        "Please add at least one fragrance to your cart.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    const quantityNumber =
-      cart.reduce(
-        (sum, item) =>
-          sum + item.qty,
-        0
-      );
-
-
-    const orderTotal =
-      getCartTotal();
-
-
-    const scentName =
-      cart
-        .map(
-          item =>
-            getProductById(
-              item.id
-            )?.name ||
-            item.id
-        )
-        .join(
-          ", "
-        );
-
-
-    const cartLines =
-      cart
-        .map(
-          item => {
-
-            const p =
-              getProductById(
-                item.id
-              );
-
-
-            return `
-              ${p.name} × ${
-                item.qty
-              } — ₱${
-                (
-                  Number(
-                    p.price ||
-                    PRODUCT_PRICE
-                  ) *
-                  item.qty
-                ).toLocaleString()
-              }
-            `;
-
-          }
-        )
-        .join(
-          "\n"
-        );
-
-
-    const lines =
-      [
-        "AURA & ESSENCE — Order",
-
-        "—————————————",
-
-        "Name: " +
-          data.get(
-            "fullname"
-          ),
-
-        "Contact: " +
-          data.get(
-            "contact"
-          ),
-
-        "Items:",
-
-        cartLines,
-
-        "Location: " +
-          data.get(
-            "address"
-          ),
-
-        "Payment: " +
-          data.get(
-            "payment"
-          ),
-
-        "Notes: " +
-          (
-            data.get(
-              "notes"
-            ) ||
-            "—"
-          ),
-
-        "—————————————",
-
-        "Total items: " +
-          quantityNumber,
-
-        "Estimated total: ₱" +
-          orderTotal.toLocaleString()
-
-      ].join(
-        "\n"
-      );
-
-
-    summaryLines.textContent =
-      lines;
-
-    summaryEmpty.style.display =
-      "none";
-
-    summaryLines.style.display =
-      "block";
-
-    summaryActions.style.display =
-      "flex";
-
-
-    if (
-      GOOGLE_SHEETS_WEB_APP_URL.includes(
-        "PASTE_YOUR_"
-      )
-    ) {
-
-      showSubmitStatus(
-        "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
-        "error"
-      );
-
-      summaryLines.scrollIntoView({
-        behavior:
-          "smooth",
-        block:
-          "nearest"
-      });
-
-      return;
-    }
-
-
-    submitBtn.disabled =
-      true;
-
-    submitBtn.textContent =
-      "Saving Order…";
-
-
+  if (!cart.length) {
     showSubmitStatus(
-      "Saving your order securely…",
-      "success"
+      "Please add at least one fragrance to your cart.",
+      "error",
     );
 
+    return;
+  }
 
-    try {
+  const quantityNumber = cart.reduce((sum, item) => sum + item.qty, 0);
 
-      const payload =
-        new URLSearchParams({
+  const orderTotal = getCartTotal();
 
-          fullname:
-            data.get(
-              "fullname"
-            ) || "",
+  const scentName = cart
+    .map((item) => getProductById(item.id)?.name || item.id)
+    .join(", ");
 
-          contact:
-            data.get(
-              "contact"
-            ) || "",
+  const cartLines = cart
+    .map((item) => {
+      const p = getProductById(item.id);
 
-          scent:
-            scentName,
+      return `
+              ${p.name} × ${item.qty} — ₱${(
+                Number(p.price || PRODUCT_PRICE) * item.qty
+              ).toLocaleString()}
+            `;
+    })
+    .join("\n");
 
-          scentId:
-            cart
-              .map(
-                item =>
-                  item.id
-              )
-              .join(","),
+  const lines = [
+    "AURA & ESSENCE — Order",
 
-          qty:
-            quantityNumber +
-            (
-              quantityNumber === 1
-                ? " bottle"
-                : " bottles"
-            ),
+    "—————————————",
 
-          items:
-            JSON.stringify(
-              cart.map(
-                item => ({
-                  id:
-                    item.id,
+    "Name: " + data.get("fullname"),
 
-                  name:
-                    getProductById(
-                      item.id
-                    )?.name ||
-                    item.id,
+    "Contact: " + data.get("contact"),
 
-                  qty:
-                    item.qty
-                })
-              )
-            ),
+    "Items:",
 
-          address:
-            data.get(
-              "address"
-            ) || "",
+    cartLines,
 
-          payment:
-            data.get(
-              "payment"
-            ) || "",
+    "Location: " + data.get("address"),
 
-          notes:
-            data.get(
-              "notes"
-            ) || "",
+    "Payment: " + data.get("payment"),
 
-          price:
-            "430",
+    "Notes: " + (data.get("notes") || "—"),
 
-          total:
-            String(
-              orderTotal
-            )
+    "—————————————",
 
-        });
+    "Total items: " + quantityNumber,
 
+    "Estimated total: ₱" + orderTotal.toLocaleString(),
+  ].join("\n");
 
-      const response =
-        await fetch(
-          GOOGLE_SHEETS_WEB_APP_URL,
-          {
+  summaryLines.textContent = lines;
 
-            method:
-              "POST",
+  summaryEmpty.style.display = "none";
 
-            headers: {
-              "Content-Type":
-                "application/x-www-form-urlencoded;charset=UTF-8"
-            },
+  summaryLines.style.display = "block";
 
-            body:
-              payload.toString()
+  summaryActions.style.display = "flex";
 
-          }
-        );
-
-
-      const result =
-        await response.json();
-
-
-      if (
-        !result.success
-      ) {
-
-        throw new Error(
-          result.message ||
-          "Unable to save the order."
-        );
-
-      }
-
-
-      showSubmitStatus(
-        "Order saved successfully. We received your order and will contact you soon.",
-        "success"
-      );
-
-
-      document
-        .getElementById(
-          "confirmationOrderId"
-        )
-        .textContent =
-        result.orderId ||
-        "ORDER RECEIVED";
-
-
-      document
-        .getElementById(
-          "confirmationMessage"
-        )
-        .textContent =
-        `Thank you, ${
-          data.get(
-            "fullname"
-          ) ||
-          "customer"
-        }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
-
-
-      document
-        .getElementById(
-          "confirmationModal"
-        )
-        .classList.add(
-          "show"
-        );
-
-
-      document
-        .getElementById(
-          "confirmationModal"
-        )
-        .setAttribute(
-          "aria-hidden",
-          "false"
-        );
-
-
-      form.reset();
-
-
-      qtyNumber.value =
-        1;
-
-
-      cart = [];
-
-
-      localStorage.removeItem(
-        "aeCart"
-      );
-
-
-      syncQuantity();
-
-      renderCart();
-
-      renderScentOptions();
-
-
-    } catch (err) {
-
-      console.error(
-        err
-      );
-
-
-      showSubmitStatus(
-        "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
-        "error"
-      );
-
-
-    } finally {
-
-      submitBtn.disabled =
-        false;
-
-      submitBtn.textContent =
-        "Submit Order";
-
-    }
-
+  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+    showSubmitStatus(
+      "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
+      "error",
+    );
 
     summaryLines.scrollIntoView({
-      behavior:
-        "smooth",
-      block:
-        "nearest"
+      behavior: "smooth",
+      block: "nearest",
     });
 
+    return;
   }
-);
 
+  submitBtn.disabled = true;
+
+  submitBtn.textContent = "Saving Order…";
+
+  showSubmitStatus("Saving your order securely…", "success");
+
+  try {
+    const payload = new URLSearchParams({
+      fullname: data.get("fullname") || "",
+
+      contact: data.get("contact") || "",
+
+      scent: scentName,
+
+      scentId: cart.map((item) => item.id).join(","),
+
+      qty: quantityNumber + (quantityNumber === 1 ? " bottle" : " bottles"),
+
+      items: JSON.stringify(
+        cart.map((item) => ({
+          id: item.id,
+
+          name: getProductById(item.id)?.name || item.id,
+
+          qty: item.qty,
+        })),
+      ),
+
+      address: data.get("address") || "",
+
+      payment: data.get("payment") || "",
+
+      notes: data.get("notes") || "",
+
+      price: "430",
+
+      total: String(orderTotal),
+    });
+
+    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+
+      body: payload.toString(),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.message || "Unable to save the order.");
+    }
+
+    showSubmitStatus(
+      "Order saved successfully. We received your order and will contact you soon.",
+      "success",
+    );
+
+    document.getElementById("confirmationOrderId").textContent =
+      result.orderId || "ORDER RECEIVED";
+
+    document.getElementById("confirmationMessage").textContent = `Thank you, ${
+      data.get("fullname") || "customer"
+    }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
+
+    document.getElementById("confirmationModal").classList.add("show");
+
+    document
+      .getElementById("confirmationModal")
+      .setAttribute("aria-hidden", "false");
+
+    form.reset();
+
+    qtyNumber.value = 1;
+
+    cart = [];
+
+    localStorage.removeItem("aeCart");
+
+    syncQuantity();
+
+    renderCart();
+
+    renderScentOptions();
+  } catch (err) {
+    console.error(err);
+
+    showSubmitStatus(
+      "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
+      "error",
+    );
+  } finally {
+    submitBtn.disabled = false;
+
+    submitBtn.textContent = "Submit Order";
+  }
+
+  summaryLines.scrollIntoView({
+    behavior: "smooth",
+    block: "nearest",
+  });
+});
 
 // ============================================================
 // ORDER CONFIRMATION MODAL
 // ============================================================
 
-const confirmationModal =
-  document.getElementById(
-    "confirmationModal"
-  );
-
+const confirmationModal = document.getElementById("confirmationModal");
 
 document
-  .getElementById(
-    "confirmationCloseBtn"
-  )
-  .addEventListener(
-    "click",
-    () => {
+  .getElementById("confirmationCloseBtn")
+  .addEventListener("click", () => {
+    confirmationModal.classList.remove("show");
 
-      confirmationModal.classList.remove(
-        "show"
-      );
-
-      confirmationModal.setAttribute(
-        "aria-hidden",
-        "true"
-      );
-
-    }
-  );
-
+    confirmationModal.setAttribute("aria-hidden", "true");
+  });
 
 document
-  .getElementById(
-    "confirmationTrackBtn"
-  )
-  .addEventListener(
-    "click",
-    () => {
+  .getElementById("confirmationTrackBtn")
+  .addEventListener("click", () => {
+    const id = document
+      .getElementById("confirmationOrderId")
+      .textContent.trim();
 
-      const id =
-        document
-          .getElementById(
-            "confirmationOrderId"
-          )
-          .textContent
-          .trim();
+    document.getElementById("trackingOrderId").value = id;
 
+    confirmationModal.classList.remove("show");
 
-      document
-        .getElementById(
-          "trackingOrderId"
-        )
-        .value =
-        id;
+    document.getElementById("tracking").scrollIntoView({
+      behavior: "smooth",
+    });
+  });
 
-
-      confirmationModal.classList.remove(
-        "show"
-      );
-
-
-      document
-        .getElementById(
-          "tracking"
-        )
-        .scrollIntoView({
-          behavior:
-            "smooth"
-        });
-
-    }
-  );
-
-
-confirmationModal.addEventListener(
-  "click",
-  e => {
-
-    if (
-      e.target ===
-      confirmationModal
-    ) {
-
-      document
-        .getElementById(
-          "confirmationCloseBtn"
-        )
-        .click();
-
-    }
-
+confirmationModal.addEventListener("click", (e) => {
+  if (e.target === confirmationModal) {
+    document.getElementById("confirmationCloseBtn").click();
   }
-);
-
+});
 
 // ============================================================
 // ORDER TRACKING
 // ============================================================
 
-const trackingResult =
-  document.getElementById(
-    "trackingResult"
+const trackingResult = document.getElementById("trackingResult");
+
+const trackingStatus = document.getElementById("trackingStatus");
+
+const trackingResultId = document.getElementById("trackingResultId");
+
+const trackingResultSummary = document.getElementById("trackingResultSummary");
+
+const trackSteps = [
+  "New",
+  "Confirmed",
+  "Preparing",
+  "Out for Delivery",
+  "Completed",
+];
+
+function renderTracking(data) {
+  const status = data.status || "New";
+
+  const current = Math.max(
+    0,
+    trackSteps.findIndex((x) => x.toLowerCase() === status.toLowerCase()),
   );
 
-const trackingStatus =
-  document.getElementById(
-    "trackingStatus"
-  );
+  trackingResultId.textContent = data.orderId || "ORDER";
 
-const trackingResultId =
-  document.getElementById(
-    "trackingResultId"
-  );
-
-const trackingResultSummary =
-  document.getElementById(
-    "trackingResultSummary"
-  );
-
-
-const trackSteps =
-  [
-    "New",
-    "Confirmed",
-    "Preparing",
-    "Out for Delivery",
-    "Completed"
-  ];
-
-
-function renderTracking(
-  data
-) {
-
-  const status =
-    data.status ||
-    "New";
-
-
-  const current =
-    Math.max(
-      0,
-      trackSteps.findIndex(
-        x =>
-          x.toLowerCase() ===
-          status.toLowerCase()
-      )
-    );
-
-
-  trackingResultId.textContent =
-    data.orderId ||
-    "ORDER";
-
-
-  trackingResultSummary.innerHTML =
-    `
+  trackingResultSummary.innerHTML = `
       <p
         style="
           color:var(--parchment-dim);
@@ -4189,86 +2171,45 @@ function renderTracking(
           margin:12px 0
         "
       >
-        ${
-          data.scent ||
-          "Order"
-        }
+        ${data.scent || "Order"}
         •
-        ${
-          data.qty ||
-          ""
-        }
-        • ₱${
-          Number(
-            data.total ||
-            0
-          ).toLocaleString()
-        }
+        ${data.qty || ""}
+        • ₱${Number(data.total || 0).toLocaleString()}
 
         <br>
 
         Customer:
-        ${
-          data.fullname ||
-          ""
-        }
+        ${data.fullname || ""}
       </p>
     `;
 
-
-  trackingStatus.innerHTML =
-    trackSteps
-      .map(
-        (
-          step,
-          i
-        ) =>
-          `
+  trackingStatus.innerHTML = trackSteps
+    .map(
+      (step, i) =>
+        `
             <div
               class="track-step ${
-                i < current
-                  ? "done"
-                  : i === current
-                    ? "current"
-                    : ""
+                i < current ? "done" : i === current ? "current" : ""
               }"
             >
-              ${
-                i < current
-                  ? "✓ "
-                  : i === current
-                    ? "● "
-                    : "○ "
-              }
+              ${i < current ? "✓ " : i === current ? "● " : "○ "}
 
               ${step}
 
             </div>
-          `
-      )
-      .join("");
+          `,
+    )
+    .join("");
 
-
-  trackingResult.classList.add(
-    "show"
-  );
+  trackingResult.classList.add("show");
 }
 
+function showTrackingError(msg) {
+  trackingResult.classList.add("show");
 
-function showTrackingError(
-  msg
-) {
+  trackingResultId.textContent = "NOT FOUND";
 
-  trackingResult.classList.add(
-    "show"
-  );
-
-  trackingResultId.textContent =
-    "NOT FOUND";
-
-
-  trackingResultSummary.innerHTML =
-    `
+  trackingResultSummary.innerHTML = `
       <p
         style="
           color:#e8b0b0
@@ -4278,189 +2219,76 @@ function showTrackingError(
       </p>
     `;
 
-
-  trackingStatus.innerHTML =
-    "";
+  trackingStatus.innerHTML = "";
 }
 
+document.getElementById("trackOrderBtn").addEventListener("click", () => {
+  const orderId = document.getElementById("trackingOrderId").value.trim();
 
-document
-  .getElementById(
-    "trackOrderBtn"
-  )
-  .addEventListener(
-    "click",
-    () => {
+  const contact = document.getElementById("trackingContact").value.trim();
 
-      const orderId =
-        document
-          .getElementById(
-            "trackingOrderId"
-          )
-          .value
-          .trim();
+  if (!orderId || !contact) {
+    showTrackingError("Please enter both your Order ID and contact number.");
 
+    return;
+  }
 
-      const contact =
-        document
-          .getElementById(
-            "trackingContact"
-          )
-          .value
-          .trim();
+  const callbackName = "__aeTrack_" + Date.now();
 
-
-      if (
-        !orderId ||
-        !contact
-      ) {
-
-        showTrackingError(
-          "Please enter both your Order ID and contact number."
-        );
-
-        return;
+  window[callbackName] = (data) => {
+    try {
+      if (!data?.success) {
+        throw new Error(data?.message || "Order not found.");
       }
 
+      renderTracking(data);
+    } catch (e) {
+      showTrackingError(e.message || "Order not found.");
+    } finally {
+      delete window[callbackName];
 
-      const callbackName =
-        "__aeTrack_" +
-        Date.now();
-
-
-      window[callbackName] =
-        data => {
-
-          try {
-
-            if (
-              !data?.success
-            ) {
-
-              throw new Error(
-                data?.message ||
-                "Order not found."
-              );
-
-            }
-
-
-            renderTracking(
-              data
-            );
-
-
-          } catch (e) {
-
-            showTrackingError(
-              e.message ||
-              "Order not found."
-            );
-
-
-          } finally {
-
-            delete window[
-              callbackName
-            ];
-
-            script.remove();
-
-          }
-
-        };
-
-
-      const script =
-        document.createElement(
-          "script"
-        );
-
-
-      script.src =
-        GOOGLE_SHEETS_WEB_APP_URL +
-        (
-          GOOGLE_SHEETS_WEB_APP_URL.includes(
-            "?"
-          )
-            ? "&"
-            : "?"
-        ) +
-        "action=trackOrder" +
-        "&orderId=" +
-        encodeURIComponent(
-          orderId
-        ) +
-        "&contact=" +
-        encodeURIComponent(
-          contact
-        ) +
-        "&callback=" +
-        encodeURIComponent(
-          callbackName
-        );
-
-
-      script.onerror =
-        () => {
-
-          showTrackingError(
-            "The tracking service is temporarily unavailable."
-          );
-
-          delete window[
-            callbackName
-          ];
-
-          script.remove();
-
-        };
-
-
-      document.body.appendChild(
-        script
-      );
-
+      script.remove();
     }
-  );
+  };
 
+  const script = document.createElement("script");
+
+  script.src =
+    GOOGLE_SHEETS_WEB_APP_URL +
+    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
+    "action=trackOrder" +
+    "&orderId=" +
+    encodeURIComponent(orderId) +
+    "&contact=" +
+    encodeURIComponent(contact) +
+    "&callback=" +
+    encodeURIComponent(callbackName);
+
+  script.onerror = () => {
+    showTrackingError("The tracking service is temporarily unavailable.");
+
+    delete window[callbackName];
+
+    script.remove();
+  };
+
+  document.body.appendChild(script);
+});
 
 // ============================================================
 // COPY ORDER SUMMARY
 // ============================================================
 
-copyBtn.addEventListener(
-  "click",
-  async function() {
+copyBtn.addEventListener("click", async function () {
+  try {
+    await navigator.clipboard.writeText(summaryLines.textContent);
 
-    try {
+    copyBtn.textContent = "Copied!";
 
-      await navigator.clipboard.writeText(
-        summaryLines.textContent
-      );
-
-
-      copyBtn.textContent =
-        "Copied!";
-
-
-      setTimeout(
-        () => {
-
-          copyBtn.textContent =
-            "Copy Order Summary";
-
-        },
-        1800
-      );
-
-
-    } catch (err) {
-
-      copyBtn.textContent =
-        "Select the text above to copy";
-
-    }
-
+    setTimeout(() => {
+      copyBtn.textContent = "Copy Order Summary";
+    }, 1800);
+  } catch (err) {
+    copyBtn.textContent = "Select the text above to copy";
   }
-);
+});
