@@ -14,13 +14,10 @@ const reviewStats = {};
 
 class ProductCatalog {
   constructor(products, meta = {}) {
-    this.products = products.map(
-      (product) =>
-        new Product({
-          ...product,
-          ...(meta[product.id] || {}),
-        }),
-    );
+    this.products = products.map(product => new Product({
+      ...product,
+      ...(meta[product.id] || {})
+    }));
 
     this.meta = meta;
   }
@@ -30,11 +27,13 @@ class ProductCatalog {
   }
 
   find(id) {
-    return this.products.find((product) => product.id === id);
+    return this.products.find(product => product.id === id);
   }
 
   upsert(data) {
-    const index = this.products.findIndex((product) => product.id === data.id);
+    const index = this.products.findIndex(
+      product => product.id === data.id
+    );
 
     const product = new Product(data);
 
@@ -48,23 +47,33 @@ class ProductCatalog {
   }
 
   remove(id) {
-    this.products = this.products.filter((product) => product.id !== id);
+    this.products =
+      this.products.filter(product => product.id !== id);
   }
 }
+
 
 class CartManager {
   constructor(storageKey = "aeCart") {
     this.storageKey = storageKey;
 
-    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    this.items =
+      JSON.parse(
+        localStorage.getItem(storageKey) || "[]"
+      );
   }
 
   save() {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+    localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(this.items)
+    );
   }
 
   find(id) {
-    return this.items.find((item) => item.id === id);
+    return this.items.find(
+      item => item.id === id
+    );
   }
 
   clear() {
@@ -73,15 +82,25 @@ class CartManager {
   }
 
   add(product, qty = 1) {
-    if (!product || product.active === false || product.stock === 0) {
+
+    if (
+      !product ||
+      product.active === false ||
+      product.stock === 0
+    ) {
       return false;
     }
 
-    const existing = this.find(product.id);
+    const existing =
+      this.find(product.id);
 
-    const nextQty = (existing?.qty || 0) + qty;
+    const nextQty =
+      (existing?.qty || 0) + qty;
 
-    if (product.stock != null && nextQty > Number(product.stock)) {
+    if (
+      product.stock != null &&
+      nextQty > Number(product.stock)
+    ) {
       return false;
     }
 
@@ -90,7 +109,7 @@ class CartManager {
     } else {
       this.items.push({
         id: product.id,
-        qty,
+        qty
       });
     }
 
@@ -100,16 +119,26 @@ class CartManager {
   }
 
   change(product, delta) {
-    const item = this.find(product?.id);
+
+    const item =
+      this.find(product?.id);
 
     if (!item || !product) {
       return;
     }
 
-    item.qty = Math.max(0, item.qty + delta);
+    item.qty =
+      Math.max(
+        0,
+        item.qty + delta
+      );
 
     if (product.stock != null) {
-      item.qty = Math.min(item.qty, Number(product.stock));
+      item.qty =
+        Math.min(
+          item.qty,
+          Number(product.stock)
+        );
     }
 
     if (item.qty === 0) {
@@ -120,25 +149,48 @@ class CartManager {
   }
 
   remove(id) {
-    this.items = this.items.filter((item) => item.id !== id);
+
+    this.items =
+      this.items.filter(
+        item => item.id !== id
+      );
 
     this.save();
   }
 
   total(catalog) {
-    return this.items.reduce((sum, item) => {
-      const product = catalog.find(item.id);
 
-      return sum + (product ? product.priceValue * item.qty : 0);
-    }, 0);
+    return this.items.reduce(
+      (sum, item) => {
+
+        const product =
+          catalog.find(item.id);
+
+        return sum +
+          (
+            product
+              ? product.priceValue * item.qty
+              : 0
+          );
+
+      },
+      0
+    );
   }
 }
 
-class WishlistManager {
-  constructor(storageKey = "aeFavorites") {
-    this.storageKey = storageKey;
 
-    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
+class WishlistManager {
+
+  constructor(storageKey = "aeFavorites") {
+
+    this.storageKey =
+      storageKey;
+
+    this.items =
+      JSON.parse(
+        localStorage.getItem(storageKey) || "[]"
+      );
   }
 
   has(id) {
@@ -146,65 +198,107 @@ class WishlistManager {
   }
 
   toggle(id) {
-    this.items = this.has(id)
-      ? this.items.filter((item) => item !== id)
-      : [...this.items, id];
 
-    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+    this.items =
+      this.has(id)
+        ? this.items.filter(
+            item => item !== id
+          )
+        : [
+            ...this.items,
+            id
+          ];
+
+    localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(this.items)
+    );
 
     return this.items;
   }
 }
 
+
 class ApiClient {
+
   constructor(baseUrl) {
     this.baseUrl = baseUrl;
   }
 
   async get(params = {}) {
-    const url = new URL(this.baseUrl);
 
-    Object.entries(params).forEach(([key, value]) =>
-      url.searchParams.set(key, value),
-    );
+    const url =
+      new URL(this.baseUrl);
 
-    const response = await fetch(url, {
-      cache: "no-store",
-    });
+    Object.entries(params)
+      .forEach(
+        ([key, value]) =>
+          url.searchParams.set(
+            key,
+            value
+          )
+      );
+
+    const response =
+      await fetch(
+        url,
+        {
+          cache: "no-store"
+        }
+      );
 
     return response.json();
   }
 
   async post(params = {}) {
-    const response = await fetch(this.baseUrl, {
-      method: "POST",
 
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
+    const response =
+      await fetch(
+        this.baseUrl,
+        {
+          method: "POST",
 
-      body: new URLSearchParams(params).toString(),
-    });
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded;charset=UTF-8"
+          },
+
+          body:
+            new URLSearchParams(
+              params
+            ).toString()
+        }
+      );
 
     return response.json();
   }
 }
 
+
 // ============================================================
 // GLOBAL SERVICES
 // ============================================================
 
-const catalog = new ProductCatalog(PRODUCTS, PRODUCT_META);
+const catalog =
+  new ProductCatalog(
+    PRODUCTS,
+    PRODUCT_META
+  );
 
-const cartManager = new CartManager();
+const cartManager =
+  new CartManager();
 
-const wishlistManager = new WishlistManager();
+const wishlistManager =
+  new WishlistManager();
 
 let apiClient;
 
-let favorites = wishlistManager.items;
+let favorites =
+  wishlistManager.items;
 
-let cart = cartManager.items;
+let cart =
+  cartManager.items;
+
 
 // ============================================================
 // BASIC HELPERS
@@ -214,103 +308,184 @@ function getProductById(id) {
   return catalog.find(id);
 }
 
+
 function getCartTotal() {
-  return cartManager.total(catalog);
+  return cartManager.total(
+    catalog
+  );
 }
 
+
 function saveCart() {
-  cartManager.items = cart;
+
+  cartManager.items =
+    cart;
 
   cartManager.save();
 
   renderCart();
 }
 
-function addToCart(id, qty = 1) {
-  const product = getProductById(id);
+
+function addToCart(
+  id,
+  qty = 1
+) {
+
+  const product =
+    getProductById(id);
 
   if (!product) {
     return;
   }
 
-  const existing = cartManager.find(id);
+  const existing =
+    cartManager.find(id);
 
-  const next = (existing?.qty || 0) + qty;
+  const next =
+    (existing?.qty || 0) + qty;
 
-  if (product.stock != null && next > Number(product.stock)) {
-    alert(`Only ${product.stock} bottle(s) of ${product.name} available.`);
+  if (
+    product.stock != null &&
+    next > Number(product.stock)
+  ) {
+
+    alert(
+      `Only ${product.stock} bottle(s) of ${product.name} available.`
+    );
 
     return;
   }
 
-  if (!cartManager.add(product, qty)) {
+  if (
+    !cartManager.add(
+      product,
+      qty
+    )
+  ) {
     return;
   }
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
 
-function changeCartQty(id, delta) {
-  const product = getProductById(id);
+
+function changeCartQty(
+  id,
+  delta
+) {
+
+  const product =
+    getProductById(id);
 
   if (!product) {
     return;
   }
 
-  cartManager.change(product, delta);
+  cartManager.change(
+    product,
+    delta
+  );
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
+
 
 function removeFromCart(id) {
+
   cartManager.remove(id);
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
 
+
 function renderCart() {
-  const wrap = document.getElementById("cartItems");
 
-  const count = document.getElementById("cartCount");
+  const wrap =
+    document.getElementById(
+      "cartItems"
+    );
 
-  const total = document.getElementById("cartTotal");
+  const count =
+    document.getElementById(
+      "cartCount"
+    );
+
+  const total =
+    document.getElementById(
+      "cartTotal"
+    );
 
   if (!wrap) {
     return;
   }
 
-  const valid = cart.filter((item) => getProductById(item.id));
+  const valid =
+    cart.filter(
+      item =>
+        getProductById(
+          item.id
+        )
+    );
 
-  if (valid.length !== cart.length) {
+  if (
+    valid.length !== cart.length
+  ) {
+
     cart = valid;
 
-    localStorage.setItem("aeCart", JSON.stringify(cart));
+    localStorage.setItem(
+      "aeCart",
+      JSON.stringify(cart)
+    );
   }
 
-  const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+  const totalQty =
+    cart.reduce(
+      (sum, item) =>
+        sum + item.qty,
+      0
+    );
 
-  count.textContent = `${totalQty} ${totalQty === 1 ? "item" : "items"}`;
+  count.textContent =
+    `${totalQty} ${
+      totalQty === 1
+        ? "item"
+        : "items"
+    }`;
 
-  total.textContent = `₱${getCartTotal().toLocaleString()}`;
+  total.textContent =
+    `₱${getCartTotal().toLocaleString()}`;
+
 
   if (!cart.length) {
+
     wrap.innerHTML =
       '<div class="cart-empty">Your cart is empty. Add one or more fragrances above.</div>';
 
     return;
   }
 
-  wrap.innerHTML = cart
-    .map((item) => {
-      const p = getProductById(item.id);
 
-      return `
+  wrap.innerHTML =
+    cart
+      .map(item => {
+
+        const p =
+          getProductById(
+            item.id
+          );
+
+        return `
           <div class="cart-item">
 
             <img
@@ -325,7 +500,10 @@ function renderCart() {
               </div>
 
               <div class="cart-item-price">
-                ₱${Number(p.price || PRODUCT_PRICE).toLocaleString()}
+                ₱${Number(
+                  p.price ||
+                  PRODUCT_PRICE
+                ).toLocaleString()}
                 each
               </div>
 
@@ -364,144 +542,308 @@ function renderCart() {
 
           </div>
         `;
-    })
-    .join("");
+
+      })
+      .join("");
 }
+
 
 // ============================================================
 // CART EVENTS
 // ============================================================
 
-document.getElementById("cartItems")?.addEventListener("click", (e) => {
-  const minus = e.target.closest("[data-cart-minus]");
+document
+  .getElementById(
+    "cartItems"
+  )
+  ?.addEventListener(
+    "click",
+    e => {
 
-  const plus = e.target.closest("[data-cart-plus]");
+      const minus =
+        e.target.closest(
+          "[data-cart-minus]"
+        );
 
-  const remove = e.target.closest("[data-cart-remove]");
+      const plus =
+        e.target.closest(
+          "[data-cart-plus]"
+        );
 
-  if (minus) {
-    changeCartQty(minus.dataset.cartMinus, -1);
-  }
+      const remove =
+        e.target.closest(
+          "[data-cart-remove]"
+        );
 
-  if (plus) {
-    changeCartQty(plus.dataset.cartPlus, 1);
-  }
 
-  if (remove) {
-    removeFromCart(remove.dataset.cartRemove);
-  }
-});
+      if (minus) {
 
-document.getElementById("addSelectedToCart")?.addEventListener("click", () => {
-  if (scentSelect.value) {
-    addToCart(scentSelect.value, 1);
-  }
-});
+        changeCartQty(
+          minus.dataset.cartMinus,
+          -1
+        );
+
+      }
+
+
+      if (plus) {
+
+        changeCartQty(
+          plus.dataset.cartPlus,
+          1
+        );
+
+      }
+
+
+      if (remove) {
+
+        removeFromCart(
+          remove.dataset.cartRemove
+        );
+
+      }
+
+    }
+  );
+
+
+document
+  .getElementById(
+    "addSelectedToCart"
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+
+      if (
+        scentSelect.value
+      ) {
+
+        addToCart(
+          scentSelect.value,
+          1
+        );
+
+      }
+
+    }
+  );
+
 
 // ============================================================
 // DOM REFERENCES
 // ============================================================
 
-const carousel = document.getElementById("carousel");
+const carousel =
+  document.getElementById(
+    "carousel"
+  );
 
-const carouselPrev = document.getElementById("carouselPrev");
+const carouselPrev =
+  document.getElementById(
+    "carouselPrev"
+  );
 
-const carouselNext = document.getElementById("carouselNext");
+const carouselNext =
+  document.getElementById(
+    "carouselNext"
+  );
 
-const scentSelect = document.getElementById("scent");
+const scentSelect =
+  document.getElementById(
+    "scent"
+  );
 
-const tabs = document.querySelectorAll(".tab");
+const tabs =
+  document.querySelectorAll(
+    ".tab"
+  );
 
-let activeCat = "men";
+let activeCat =
+  "men";
 
-const productSearch = document.getElementById("productSearch");
 
-const profileFilter = document.getElementById("profileFilter");
+const productSearch =
+  document.getElementById(
+    "productSearch"
+  );
 
-const wishlistToggle = document.getElementById("wishlistToggle");
+const profileFilter =
+  document.getElementById(
+    "profileFilter"
+  );
 
-const wishlistPanel = document.getElementById("wishlistPanel");
+const wishlistToggle =
+  document.getElementById(
+    "wishlistToggle"
+  );
 
-const wishlistItems = document.getElementById("wishlistItems");
+const wishlistPanel =
+  document.getElementById(
+    "wishlistPanel"
+  );
 
-const wishlistEmpty = document.getElementById("wishlistEmpty");
+const wishlistItems =
+  document.getElementById(
+    "wishlistItems"
+  );
+
+const wishlistEmpty =
+  document.getElementById(
+    "wishlistEmpty"
+  );
+
 
 // ============================================================
 // PRODUCT FILTER
 // ============================================================
 
 function getVisibleProducts(cat) {
-  const query = (productSearch?.value || "").trim().toLowerCase();
 
-  const profile = profileFilter?.value || "all";
+  const query =
+    (
+      productSearch?.value ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const profile =
+    profileFilter?.value ||
+    "all";
+
 
   return catalog
     .all()
-    .filter((p) => {
-      if (p.active === false) {
+    .filter(p => {
+
+      if (
+        p.active === false
+      ) {
         return false;
       }
 
-      if (p.cat !== cat) {
+      if (
+        p.cat !== cat
+      ) {
         return false;
       }
 
-      const meta = PRODUCT_META[p.id] || {};
+      const meta =
+        PRODUCT_META[p.id] ||
+        {};
 
-      const searchable = [
-        p.name,
-        p.desc,
-        ...(p.topNotes || []),
-        ...(p.heartNotes || []),
-        ...(p.baseNotes || []),
-        ...(meta.profiles || []),
-      ]
-        .join(" ")
-        .toLowerCase();
 
-      if (query && !searchable.includes(query)) {
+      const searchable =
+        [
+          p.name,
+          p.desc,
+          ...(p.topNotes || []),
+          ...(p.heartNotes || []),
+          ...(p.baseNotes || []),
+          ...(meta.profiles || [])
+        ]
+          .join(" ")
+          .toLowerCase();
+
+
+      if (
+        query &&
+        !searchable.includes(
+          query
+        )
+      ) {
         return false;
       }
 
-      if (profile !== "all" && !(meta.profiles || []).includes(profile)) {
+
+      if (
+        profile !== "all" &&
+        !(
+          meta.profiles || []
+        ).includes(profile)
+      ) {
         return false;
       }
+
 
       return true;
+
     })
-    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+    .sort(
+      (a, b) =>
+        Number(
+          a.sortOrder || 0
+        ) -
+        Number(
+          b.sortOrder || 0
+        )
+    );
 }
+
 
 // ============================================================
 // PRODUCT CAROUSEL
 // ============================================================
 
 function renderCarousel(cat) {
-  carousel.innerHTML = "";
 
-  const products = getVisibleProducts(cat);
+  carousel.innerHTML =
+    "";
 
-  products.forEach((p) => {
-    const card = document.createElement("div");
+  const products =
+    getVisibleProducts(
+      cat
+    );
 
-    card.className = "pcard";
 
-    const meta = PRODUCT_META[p.id] || {};
+  products.forEach(p => {
 
-    const stats = reviewStats[p.id] || {
-      avg: 0,
-      count: 0,
-    };
+    const card =
+      document.createElement(
+        "div"
+      );
 
-    const ratingText = stats.count
-      ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>`
-      : "No reviews yet";
+    card.className =
+      "pcard";
 
-    const badges = (meta.badges || [])
-      .map((b) => `<span class="product-badge">${b}</span>`)
-      .join("");
 
-    const saved = favorites.includes(p.id);
+    const meta =
+      PRODUCT_META[p.id] ||
+      {};
+
+    const stats =
+      reviewStats[p.id] ||
+      {
+        avg: 0,
+        count: 0
+      };
+
+
+    const ratingText =
+      stats.count
+        ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>`
+        : "No reviews yet";
+
+
+    const badges =
+      (
+        meta.badges ||
+        []
+      )
+        .map(
+          b =>
+            `<span class="product-badge">${b}</span>`
+        )
+        .join("");
+
+
+    const saved =
+      favorites.includes(
+        p.id
+      );
+
 
     card.innerHTML = `
 
@@ -513,13 +855,27 @@ function renderCarousel(cat) {
 
         <button
           type="button"
-          class="wishlist-btn ${saved ? "active" : ""}"
+          class="wishlist-btn ${
+            saved
+              ? "active"
+              : ""
+          }"
           data-wishlist-id="${p.id}"
-          aria-label="${saved ? "Remove" : "Add"} ${p.name} ${
-            saved ? "from" : "to"
+          aria-label="${
+            saved
+              ? "Remove"
+              : "Add"
+          } ${p.name} ${
+            saved
+              ? "from"
+              : "to"
           } favorites"
         >
-          ${saved ? "♥" : "♡"}
+          ${
+            saved
+              ? "♥"
+              : "♡"
+          }
         </button>
 
         <img
@@ -534,7 +890,11 @@ function renderCarousel(cat) {
       <div class="pbody">
 
         <span class="ptag">
-          ${cat === "men" ? "FOR HIM" : "FOR HER"}
+          ${
+            cat === "men"
+              ? "FOR HIM"
+              : "FOR HER"
+          }
         </span>
 
         <h4>
@@ -553,7 +913,10 @@ function renderCarousel(cat) {
         <div class="pfoot">
 
           <span class="pprice">
-            &#8369;${Number(p.price || PRODUCT_PRICE).toLocaleString()}
+            &#8369;${Number(
+              p.price ||
+              PRODUCT_PRICE
+            ).toLocaleString()}
           </span>
 
 
@@ -572,9 +935,17 @@ function renderCarousel(cat) {
               type="button"
               class="porder"
               data-id="${p.id}"
-              ${p.stock === 0 ? "disabled" : ""}
+              ${
+                p.stock === 0
+                  ? "disabled"
+                  : ""
+              }
             >
-              ${p.stock === 0 ? "Sold Out" : "Add"}
+              ${
+                p.stock === 0
+                  ? "Sold Out"
+                  : "Add"
+              }
             </button>
 
           </div>
@@ -583,15 +954,23 @@ function renderCarousel(cat) {
 
 
         ${
-          p.stock !== null && p.stock !== undefined
+          p.stock !== null &&
+          p.stock !== undefined
             ? `
               <span
                 class="sold-out"
                 style="color:${
-                  p.stock === 0 ? "#d98b8b" : "var(--parchment-dim)"
+                  p.stock === 0
+                    ? "#d98b8b"
+                    : "var(--parchment-dim)"
                 }"
               >
-                ${p.stock === 0 ? "SOLD OUT" : p.stock + " in stock"}
+                ${
+                  p.stock === 0
+                    ? "SOLD OUT"
+                    : p.stock +
+                      " in stock"
+                }
               </span>
             `
             : ""
@@ -600,180 +979,370 @@ function renderCarousel(cat) {
       </div>
     `;
 
-    carousel.appendChild(card);
+
+    carousel.appendChild(
+      card
+    );
+
   });
 
+
   if (!products.length) {
+
     carousel.innerHTML =
       '<div class="summary-empty" style="min-width:100%">No fragrances match your search or filter.</div>';
+
   }
 
-  requestAnimationFrame(updateCarouselArrows);
+
+  requestAnimationFrame(
+    updateCarouselArrows
+  );
 }
+
 
 // ============================================================
 // CAROUSEL CONTROLS
 // ============================================================
 
 function updateCarouselArrows() {
-  const maxScroll = carousel.scrollWidth - carousel.clientWidth;
 
-  const hasOverflow = maxScroll > 2;
+  const maxScroll =
+    carousel.scrollWidth -
+    carousel.clientWidth;
 
-  carouselPrev.disabled = !hasOverflow || carousel.scrollLeft <= 2;
+  const hasOverflow =
+    maxScroll > 2;
 
-  carouselNext.disabled = !hasOverflow || carousel.scrollLeft >= maxScroll - 2;
+
+  carouselPrev.disabled =
+    !hasOverflow ||
+    carousel.scrollLeft <= 2;
+
+
+  carouselNext.disabled =
+    !hasOverflow ||
+    carousel.scrollLeft >=
+      maxScroll - 2;
 }
 
-function scrollCarousel(direction) {
-  const card = carousel.querySelector(".pcard");
 
-  const gap = 18;
+function scrollCarousel(
+  direction
+) {
 
-  const amount = card ? card.getBoundingClientRect().width + gap : 248;
+  const card =
+    carousel.querySelector(
+      ".pcard"
+    );
+
+  const gap =
+    18;
+
+  const amount =
+    card
+      ? card.getBoundingClientRect()
+          .width + gap
+      : 248;
+
 
   carousel.scrollBy({
-    left: direction * amount,
-    behavior: "smooth",
+    left:
+      direction * amount,
+    behavior:
+      "smooth"
   });
 }
+
 
 // ============================================================
 // WISHLIST
 // ============================================================
 
 function updateWishlistPanel() {
-  wishlistItems.innerHTML = "";
 
-  const savedProducts = catalog.all().filter((p) => favorites.includes(p.id));
+  wishlistItems.innerHTML =
+    "";
 
-  wishlistEmpty.style.display = savedProducts.length ? "none" : "block";
+  const savedProducts =
+    catalog
+      .all()
+      .filter(
+        p =>
+          favorites.includes(
+            p.id
+          )
+      );
 
-  savedProducts.forEach((p) => {
-    const b = document.createElement("button");
 
-    b.type = "button";
+  wishlistEmpty.style.display =
+    savedProducts.length
+      ? "none"
+      : "block";
 
-    b.className = "wishlist-item";
 
-    b.textContent = p.name;
+  savedProducts.forEach(
+    p => {
 
-    b.dataset.wishlistJump = p.id;
+      const b =
+        document.createElement(
+          "button"
+        );
 
-    wishlistItems.appendChild(b);
-  });
+      b.type =
+        "button";
+
+      b.className =
+        "wishlist-item";
+
+      b.textContent =
+        p.name;
+
+      b.dataset.wishlistJump =
+        p.id;
+
+      wishlistItems.appendChild(
+        b
+      );
+
+    }
+  );
 }
+
 
 function toggleFavorite(id) {
-  favorites = wishlistManager.toggle(id);
+
+  favorites =
+    wishlistManager.toggle(
+      id
+    );
 
   updateWishlistPanel();
 
-  renderCarousel(activeCat);
+  renderCarousel(
+    activeCat
+  );
 }
 
-carouselPrev.addEventListener("click", () => scrollCarousel(-1));
 
-carouselNext.addEventListener("click", () => scrollCarousel(1));
+carouselPrev.addEventListener(
+  "click",
+  () =>
+    scrollCarousel(-1)
+);
 
-carousel.addEventListener("scroll", updateCarouselArrows, {
-  passive: true,
-});
+carouselNext.addEventListener(
+  "click",
+  () =>
+    scrollCarousel(1)
+);
 
-window.addEventListener("resize", updateCarouselArrows);
-
-productSearch.addEventListener("input", () => renderCarousel(activeCat));
-
-profileFilter.addEventListener("change", () => renderCarousel(activeCat));
-
-wishlistToggle.addEventListener("click", () => {
-  wishlistPanel.classList.toggle("show");
-
-  updateWishlistPanel();
-});
-
-wishlistItems.addEventListener("click", (e) => {
-  const b = e.target.closest("[data-wishlist-jump]");
-
-  if (!b) {
-    return;
+carousel.addEventListener(
+  "scroll",
+  updateCarouselArrows,
+  {
+    passive: true
   }
+);
 
-  const p = catalog.find(b.dataset.wishlistJump);
+window.addEventListener(
+  "resize",
+  updateCarouselArrows
+);
 
-  if (!p) {
-    return;
+productSearch.addEventListener(
+  "input",
+  () =>
+    renderCarousel(
+      activeCat
+    )
+);
+
+profileFilter.addEventListener(
+  "change",
+  () =>
+    renderCarousel(
+      activeCat
+    )
+);
+
+wishlistToggle.addEventListener(
+  "click",
+  () => {
+
+    wishlistPanel.classList.toggle(
+      "show"
+    );
+
+    updateWishlistPanel();
+
   }
+);
 
-  activeCat = p.cat;
+wishlistItems.addEventListener(
+  "click",
+  e => {
 
-  tabs.forEach((t) =>
-    t.classList.toggle("active", t.dataset.cat === activeCat),
-  );
+    const b =
+      e.target.closest(
+        "[data-wishlist-jump]"
+      );
 
-  renderCarousel(activeCat);
+    if (!b) {
+      return;
+    }
 
-  document.getElementById("collection").scrollIntoView({
-    behavior: "smooth",
-  });
-});
+    const p =
+      catalog.find(
+        b.dataset.wishlistJump
+      );
+
+    if (!p) {
+      return;
+    }
+
+    activeCat =
+      p.cat;
+
+    tabs.forEach(
+      t =>
+        t.classList.toggle(
+          "active",
+          t.dataset.cat ===
+            activeCat
+        )
+    );
+
+    renderCarousel(
+      activeCat
+    );
+
+    document
+      .getElementById(
+        "collection"
+      )
+      .scrollIntoView({
+        behavior:
+          "smooth"
+      });
+
+  }
+);
+
 
 function renderScentOptions() {
-  scentSelect.innerHTML = catalog
-    .all()
-    .map(
-      (p) =>
-        `<option value="${p.id}">${p.name} (${
-          p.cat === "men" ? "For Him" : "For Her"
-        })</option>`,
-    )
-    .join("");
+
+  scentSelect.innerHTML =
+    catalog
+      .all()
+      .map(
+        p =>
+          `<option value="${p.id}">${p.name} (${
+            p.cat === "men"
+              ? "For Him"
+              : "For Her"
+          })</option>`
+      )
+      .join("");
 }
+
 
 // ============================================================
 // FRAGRANCE DETAILS MODAL
 // ============================================================
 
-const fragranceModal = document.getElementById("fragranceModal");
+const fragranceModal =
+  document.getElementById(
+    "fragranceModal"
+  );
 
-const fragranceClose = document.getElementById("fragranceClose");
+const fragranceClose =
+  document.getElementById(
+    "fragranceClose"
+  );
 
-const fragranceModalTitle = document.getElementById("fragranceModalTitle");
+const fragranceModalTitle =
+  document.getElementById(
+    "fragranceModalTitle"
+  );
 
-const fragranceModalCategory = document.getElementById(
-  "fragranceModalCategory",
-);
+const fragranceModalCategory =
+  document.getElementById(
+    "fragranceModalCategory"
+  );
 
-const fragranceModalDescription = document.getElementById(
-  "fragranceModalDescription",
-);
+const fragranceModalDescription =
+  document.getElementById(
+    "fragranceModalDescription"
+  );
 
-const fragranceTopNotes = document.getElementById("fragranceTopNotes");
+const fragranceTopNotes =
+  document.getElementById(
+    "fragranceTopNotes"
+  );
 
-const fragranceHeartNotes = document.getElementById("fragranceHeartNotes");
+const fragranceHeartNotes =
+  document.getElementById(
+    "fragranceHeartNotes"
+  );
 
-const fragranceBaseNotes = document.getElementById("fragranceBaseNotes");
+const fragranceBaseNotes =
+  document.getElementById(
+    "fragranceBaseNotes"
+  );
 
-const fragranceApplication = document.getElementById("fragranceApplication");
+const fragranceApplication =
+  document.getElementById(
+    "fragranceApplication"
+  );
 
-const fragranceOccasion = document.getElementById("fragranceOccasion");
+const fragranceOccasion =
+  document.getElementById(
+    "fragranceOccasion"
+  );
 
-const fragranceProfileBars = document.getElementById("fragranceProfileBars");
+const fragranceProfileBars =
+  document.getElementById(
+    "fragranceProfileBars"
+  );
 
-const fragranceDayNight = document.getElementById("fragranceDayNight");
+const fragranceDayNight =
+  document.getElementById(
+    "fragranceDayNight"
+  );
+
 
 // ============================================================
 // HTML ESCAPE
 // ============================================================
 
 function escapeHTML(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/\'/g, "&#039;");
+
+  return String(
+    value ?? ""
+  )
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    )
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+    .replace(
+      /\'/g,
+      "&#039;"
+    );
 }
+
 
 // ============================================================
 // STRENGTH NORMALIZATION
@@ -788,25 +1357,51 @@ function escapeHTML(value) {
 // Strong -> Bold
 // ============================================================
 
-function normalizeStrength(value) {
-  const strength = String(value || "moderate")
-    .trim()
-    .toLowerCase();
+function normalizeStrength(
+  value
+) {
 
-  if (strength === "light") {
+  const strength =
+    String(
+      value ||
+      "moderate"
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    strength === "light"
+  ) {
     return "subtle";
   }
 
-  if (strength === "strong") {
+
+  if (
+    strength === "strong"
+  ) {
     return "bold";
   }
 
-  if (["subtle", "moderate", "bold"].includes(strength)) {
+
+  if (
+    [
+      "subtle",
+      "moderate",
+      "bold"
+    ].includes(
+      strength
+    )
+  ) {
+
     return strength;
+
   }
+
 
   return "moderate";
 }
+
 
 // ============================================================
 // OPEN FRAGRANCE DETAILS
@@ -835,17 +1430,22 @@ function openFragranceDetails(productId) {
   fragranceModalDescription.textContent =
     product.descLong || product.desc || "";
 
-  fragranceTopNotes.textContent = (product.topNotes || []).join(" • ");
+  fragranceTopNotes.textContent =
+    (product.topNotes || []).join(" • ");
 
-  fragranceHeartNotes.textContent = (product.heartNotes || []).join(" • ");
+  fragranceHeartNotes.textContent =
+    (product.heartNotes || []).join(" • ");
 
-  fragranceBaseNotes.textContent = (product.baseNotes || []).join(" • ");
+  fragranceBaseNotes.textContent =
+    (product.baseNotes || []).join(" • ");
 
-  fragranceApplication.textContent = product.application || "";
+  fragranceApplication.textContent =
+    product.application || "";
 
-  fragranceOccasion.textContent = product.occasion
-    ? "Best suited for: " + product.occasion
-    : "";
+  fragranceOccasion.textContent =
+    product.occasion
+      ? "Best suited for: " + product.occasion
+      : "";
 
   // ============================================
   // ADMIN-MANAGED PROFILE DATA
@@ -883,10 +1483,14 @@ function openFragranceDetails(productId) {
    * ["Fresh", "Woody", "Amber"]
    */
 
-  let profiles = Array.isArray(meta.profiles) ? meta.profiles : [];
+  let profiles = Array.isArray(meta.profiles)
+    ? meta.profiles
+    : [];
 
   // Clean the profile values.
-  profiles = profiles.map((profile) => String(profile).trim()).filter(Boolean);
+  profiles = profiles
+    .map(profile => String(profile).trim())
+    .filter(Boolean);
 
   // ============================================
   // PROFILE DISPLAY
@@ -894,13 +1498,11 @@ function openFragranceDetails(productId) {
 
   const profileHTML = profiles.length
     ? profiles
-        .map(
-          (profile) => `
+        .map(profile => `
           <span class="profile-tag">
             ${escapeText(profile)}
           </span>
-        `,
-        )
+        `)
         .join("")
     : `
         <span class="profile-tag">
@@ -912,15 +1514,29 @@ function openFragranceDetails(productId) {
   // LONGEVITY / PROJECTION
   // ============================================
 
-  const longevity = Math.max(1, Math.min(10, Number(meta.longevity) || 7));
+  const longevity = Math.max(
+    1,
+    Math.min(
+      10,
+      Number(meta.longevity) || 7
+    )
+  );
 
-  const projection = Math.max(1, Math.min(10, Number(meta.projection) || 7));
+  const projection = Math.max(
+    1,
+    Math.min(
+      10,
+      Number(meta.projection) || 7
+    )
+  );
 
   // ============================================
   // STRENGTH
   // ============================================
 
-  let strength = String(meta.strength || "moderate")
+  let strength = String(
+    meta.strength || "moderate"
+  )
     .trim()
     .toLowerCase();
 
@@ -945,10 +1561,11 @@ function openFragranceDetails(productId) {
     moderate: "Moderate",
 
     strong: "Bold",
-    bold: "Bold",
+    bold: "Bold"
   };
 
-  strength = strengthMap[strength] || "Moderate";
+  strength =
+    strengthMap[strength] || "Moderate";
 
   // ============================================
   // RENDER PROFILE DETAILS
@@ -1010,7 +1627,11 @@ function openFragranceDetails(productId) {
         <span
           class="profile-fill"
           style="width:${
-            strength === "Subtle" ? 33 : strength === "Moderate" ? 66 : 100
+            strength === "Subtle"
+              ? 33
+              : strength === "Moderate"
+                ? 66
+                : 100
           }%"
         ></span>
       </span>
@@ -1027,7 +1648,9 @@ function openFragranceDetails(productId) {
   // DAY / NIGHT
   // ============================================
 
-  const time = Array.isArray(meta.time) ? meta.time : [];
+  const time = Array.isArray(meta.time)
+    ? meta.time
+    : [];
 
   fragranceDayNight.innerHTML = `
     <span>
@@ -1045,90 +1668,193 @@ function openFragranceDetails(productId) {
 
   fragranceModal.classList.add("show");
 
-  fragranceModal.setAttribute("aria-hidden", "false");
+  fragranceModal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
 
   document.body.style.overflow = "hidden";
 }
+
 
 // ============================================================
 // CLOSE FRAGRANCE DETAILS
 // ============================================================
 
 function closeFragranceDetails() {
-  fragranceModal.classList.remove("show");
 
-  fragranceModal.setAttribute("aria-hidden", "true");
+  fragranceModal.classList.remove(
+    "show"
+  );
 
-  document.body.style.overflow = "";
+  fragranceModal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  document.body.style.overflow =
+    "";
 }
 
-fragranceClose.addEventListener("click", closeFragranceDetails);
 
-fragranceModal.addEventListener("click", (e) => {
-  if (e.target === fragranceModal) {
-    closeFragranceDetails();
-  }
-});
+fragranceClose.addEventListener(
+  "click",
+  closeFragranceDetails
+);
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && fragranceModal.classList.contains("show")) {
-    closeFragranceDetails();
+
+fragranceModal.addEventListener(
+  "click",
+  e => {
+
+    if (
+      e.target ===
+      fragranceModal
+    ) {
+
+      closeFragranceDetails();
+
+    }
+
   }
-});
+);
+
+
+document.addEventListener(
+  "keydown",
+  e => {
+
+    if (
+      e.key === "Escape" &&
+      fragranceModal.classList.contains(
+        "show"
+      )
+    ) {
+
+      closeFragranceDetails();
+
+    }
+
+  }
+);
+
 
 // ============================================================
 // CATEGORY TABS
 // ============================================================
 
-tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    tabs.forEach((t) => t.classList.remove("active"));
+tabs.forEach(
+  tab => {
 
-    tab.classList.add("active");
+    tab.addEventListener(
+      "click",
+      () => {
 
-    activeCat = tab.dataset.cat;
+        tabs.forEach(
+          t =>
+            t.classList.remove(
+              "active"
+            )
+        );
 
-    renderCarousel(activeCat);
+        tab.classList.add(
+          "active"
+        );
 
-    requestAnimationFrame(updateCarouselArrows);
-  });
-});
+        activeCat =
+          tab.dataset.cat;
+
+        renderCarousel(
+          activeCat
+        );
+
+        requestAnimationFrame(
+          updateCarouselArrows
+        );
+
+      }
+    );
+
+  }
+);
+
 
 // ============================================================
 // CAROUSEL CLICK EVENTS
 // ============================================================
 
-carousel.addEventListener("click", (e) => {
-  const wish = e.target.closest(".wishlist-btn");
+carousel.addEventListener(
+  "click",
+  e => {
 
-  if (wish) {
-    toggleFavorite(wish.dataset.wishlistId);
+    const wish =
+      e.target.closest(
+        ".wishlist-btn"
+      );
 
-    return;
+
+    if (wish) {
+
+      toggleFavorite(
+        wish.dataset.wishlistId
+      );
+
+      return;
+    }
+
+
+    const detailsBtn =
+      e.target.closest(
+        ".pdetails"
+      );
+
+
+    if (detailsBtn) {
+
+      openFragranceDetails(
+        detailsBtn.dataset.detailsId
+      );
+
+      return;
+    }
+
+
+    const btn =
+      e.target.closest(
+        ".porder"
+      );
+
+
+    if (
+      !btn ||
+      btn.disabled
+    ) {
+      return;
+    }
+
+
+    addToCart(
+      btn.dataset.id,
+      1
+    );
+
+
+    scentSelect.value =
+      btn.dataset.id;
+
+
+    document
+      .getElementById(
+        "order"
+      )
+      .scrollIntoView({
+        behavior:
+          "smooth"
+      });
+
   }
+);
 
-  const detailsBtn = e.target.closest(".pdetails");
-
-  if (detailsBtn) {
-    openFragranceDetails(detailsBtn.dataset.detailsId);
-
-    return;
-  }
-
-  const btn = e.target.closest(".porder");
-
-  if (!btn || btn.disabled) {
-    return;
-  }
-
-  addToCart(btn.dataset.id, 1);
-
-  scentSelect.value = btn.dataset.id;
-
-  document.getElementById("order").scrollIntoView({
-    behavior: "smooth",
-  });
-});
 
 // ============================================================
 // INITIAL RENDER
@@ -1138,9 +1864,14 @@ renderScentOptions();
 
 updateWishlistPanel();
 
-renderCarousel(activeCat);
+renderCarousel(
+  activeCat
+);
 
-requestAnimationFrame(updateCarouselArrows);
+requestAnimationFrame(
+  updateCarouselArrows
+);
+
 
 // ============================================================
 // GOOGLE SHEETS DATABASE
@@ -1149,1365 +1880,2283 @@ requestAnimationFrame(updateCarouselArrows);
 const GOOGLE_SHEETS_WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
 
-apiClient = new ApiClient(GOOGLE_SHEETS_WEB_APP_URL);
+apiClient =
+  new ApiClient(
+    GOOGLE_SHEETS_WEB_APP_URL
+  );
+
 
 // ============================================================
 // PRODUCT CATALOG SYNC
 // ============================================================
 
 async function loadManagedProducts() {
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+
+  if (
+    GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "PASTE_YOUR_"
+    )
+  ) {
     return;
   }
 
+
   try {
-    const response = await fetch(
-      GOOGLE_SHEETS_WEB_APP_URL + "?action=products",
-      {
-        cache: "no-store",
-      },
-    );
 
-    const result = await response.json();
+    const response =
+      await fetch(
+        GOOGLE_SHEETS_WEB_APP_URL +
+          "?action=products",
+        {
+          cache:
+            "no-store"
+        }
+      );
 
-    if (!result.success || !Array.isArray(result.products)) {
+
+    const result =
+      await response.json();
+
+
+    if (
+      !result.success ||
+      !Array.isArray(
+        result.products
+      )
+    ) {
       return;
     }
 
-    result.products.forEach((remote) => {
-      const existing = catalog.find(remote.id);
 
-      if (existing) {
-        Object.assign(existing, {
-          ...existing,
-          ...remote,
+    result.products.forEach(
+      remote => {
 
-          img: remote.img || existing.img,
+        const existing =
+          catalog.find(
+            remote.id
+          );
 
-          desc: remote.desc || existing.desc,
 
-          descLong: remote.descLong || existing.descLong,
+        if (existing) {
 
-          topNotes: remote.topNotes?.length
-            ? remote.topNotes
-            : existing.topNotes,
+          Object.assign(
+            existing,
+            {
+              ...existing,
+              ...remote,
 
-          heartNotes: remote.heartNotes?.length
-            ? remote.heartNotes
-            : existing.heartNotes,
+              img:
+                remote.img ||
+                existing.img,
 
-          baseNotes: remote.baseNotes?.length
-            ? remote.baseNotes
-            : existing.baseNotes,
+              desc:
+                remote.desc ||
+                existing.desc,
 
-          application: remote.application || existing.application,
-        });
-      } else {
-        catalog.upsert(remote);
+              descLong:
+                remote.descLong ||
+                existing.descLong,
+
+              topNotes:
+                remote.topNotes?.length
+                  ? remote.topNotes
+                  : existing.topNotes,
+
+              heartNotes:
+                remote.heartNotes?.length
+                  ? remote.heartNotes
+                  : existing.heartNotes,
+
+              baseNotes:
+                remote.baseNotes?.length
+                  ? remote.baseNotes
+                  : existing.baseNotes,
+
+              application:
+                remote.application ||
+                existing.application
+            }
+          );
+
+        } else {
+
+          catalog.upsert(
+            remote
+          );
+
+        }
+
+
+        PRODUCT_META[remote.id] = Object.assign(
+  PRODUCT_META[remote.id] || {},
+  {
+    profiles: Array.isArray(remote.profiles)
+      ? remote.profiles
+      : String(remote.profiles || "")
+          .split(",")
+          .map(x => x.trim())
+          .filter(Boolean),
+
+    occasion:
+      remote.occasion || "",
+
+    strength:
+      remote.strength || "moderate",
+
+    longevity:
+      Number(remote.longevity) || 7,
+
+    projection:
+      Number(remote.projection) || 7,
+
+    time:
+      Array.isArray(remote.time)
+        ? remote.time
+        : String(remote.time || "")
+            .split(",")
+            .map(x => x.trim().toLowerCase())
+            .filter(Boolean),
+
+    badges:
+      Array.isArray(remote.badges)
+        ? remote.badges
+        : String(remote.badges || "")
+            .split(",")
+            .map(x => x.trim())
+            .filter(Boolean),
+
+    sortOrder:
+      Number(remote.sortOrder) || 0
+  }
+);
+
       }
+    );
 
-      PRODUCT_META[remote.id] = Object.assign(PRODUCT_META[remote.id] || {}, {
-        profiles: Array.isArray(remote.profiles)
-          ? remote.profiles
-          : String(remote.profiles || "")
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-
-        occasion: remote.occasion || "",
-
-        strength: remote.strength || "moderate",
-
-        longevity: Number(remote.longevity) || 7,
-
-        projection: Number(remote.projection) || 7,
-
-        time: Array.isArray(remote.time)
-          ? remote.time
-          : String(remote.time || "")
-              .split(",")
-              .map((x) => x.trim().toLowerCase())
-              .filter(Boolean),
-
-        badges: Array.isArray(remote.badges)
-          ? remote.badges
-          : String(remote.badges || "")
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-
-        sortOrder: Number(remote.sortOrder) || 0,
-      });
-    });
 
     renderScentOptions();
 
     renderReviewScentOptions();
 
-    renderCarousel(activeCat);
+    renderCarousel(
+      activeCat
+    );
 
     renderCart();
 
     syncQuantity();
+
+
   } catch (error) {
-    console.warn("Managed catalog unavailable; using built-in catalog.", error);
+
+    console.warn(
+      "Managed catalog unavailable; using built-in catalog.",
+      error
+    );
+
   }
 }
 
+
 loadManagedProducts();
+
 
 // ============================================================
 // CUSTOMER REVIEWS
 // ============================================================
 
-const reviewForm = document.getElementById("reviewForm");
+const reviewForm =
+  document.getElementById(
+    "reviewForm"
+  );
 
-const reviewScent = document.getElementById("reviewScent");
+const reviewScent =
+  document.getElementById(
+    "reviewScent"
+  );
 
-const reviewRating = document.getElementById("reviewRating");
+const reviewRating =
+  document.getElementById(
+    "reviewRating"
+  );
 
-const starButtons = document.querySelectorAll("#starSelect button");
+const starButtons =
+  document.querySelectorAll(
+    "#starSelect button"
+  );
 
-const reviewSubmit = document.getElementById("reviewSubmit");
+const reviewSubmit =
+  document.getElementById(
+    "reviewSubmit"
+  );
 
-const reviewStatus = document.getElementById("reviewStatus");
+const reviewStatus =
+  document.getElementById(
+    "reviewStatus"
+  );
 
-const reviewsCarousel = document.getElementById("reviewsCarousel");
+const reviewsCarousel =
+  document.getElementById(
+    "reviewsCarousel"
+  );
 
-const reviewsLoading = document.getElementById("reviewsLoading");
+const reviewsLoading =
+  document.getElementById(
+    "reviewsLoading"
+  );
 
-const reviewsEmpty = document.getElementById("reviewsEmpty");
+const reviewsEmpty =
+  document.getElementById(
+    "reviewsEmpty"
+  );
+
 
 function renderReviewScentOptions() {
+
   reviewScent.innerHTML =
     '<option value="">Choose a scent</option>' +
+
     catalog
       .all()
-      .map((p) => `<option value="${p.id}">${p.name}</option>`)
+      .map(
+        p =>
+          `<option value="${p.id}">${p.name}</option>`
+      )
       .join("");
 }
 
-function setRating(rating) {
-  reviewRating.value = String(rating);
 
-  starButtons.forEach((btn) => {
-    btn.classList.toggle("active", Number(btn.dataset.rating) <= rating);
-  });
+function setRating(
+  rating
+) {
+
+  reviewRating.value =
+    String(rating);
+
+  starButtons.forEach(
+    btn => {
+
+      btn.classList.toggle(
+        "active",
+        Number(
+          btn.dataset.rating
+        ) <= rating
+      );
+
+    }
+  );
 }
 
-starButtons.forEach((btn) => {
-  btn.addEventListener("click", () => setRating(Number(btn.dataset.rating)));
-});
+
+starButtons.forEach(
+  btn => {
+
+    btn.addEventListener(
+      "click",
+      () =>
+        setRating(
+          Number(
+            btn.dataset.rating
+          )
+        )
+    );
+
+  }
+);
+
 
 setRating(5);
 
 renderReviewScentOptions();
 
-function showReviewStatus(message, type) {
-  reviewStatus.textContent = message;
 
-  reviewStatus.className = "review-status show " + type;
+function showReviewStatus(
+  message,
+  type
+) {
+
+  reviewStatus.textContent =
+    message;
+
+  reviewStatus.className =
+    "review-status show " +
+    type;
 }
 
-function escapeText(value) {
-  return value == null ? "" : String(value);
+
+function escapeText(
+  value
+) {
+
+  return value == null
+    ? ""
+    : String(value);
 }
+
 
 // ============================================================
 // RENDER REVIEWS
 // ============================================================
 
-function renderReviews(reviews) {
-  reviewsLoading.style.display = "none";
+function renderReviews(
+  reviews
+) {
 
-  Object.keys(reviewStats).forEach((k) => delete reviewStats[k]);
+  reviewsLoading.style.display =
+    "none";
 
-  (reviews || []).forEach((r) => {
-    const p = catalog
-      .all()
-      .find(
-        (x) => x.name.toLowerCase() === String(r.scent || "").toLowerCase(),
-      );
 
-    if (!p) {
-      return;
+  Object.keys(
+    reviewStats
+  ).forEach(
+    k =>
+      delete reviewStats[k]
+  );
+
+
+  (
+    reviews || []
+  ).forEach(
+    r => {
+
+      const p =
+        catalog
+          .all()
+          .find(
+            x =>
+              x.name.toLowerCase() ===
+              String(
+                r.scent || ""
+              ).toLowerCase()
+          );
+
+
+      if (!p) {
+        return;
+      }
+
+
+      reviewStats[p.id] ||=
+        {
+          sum: 0,
+          count: 0,
+          avg: 0
+        };
+
+
+      reviewStats[p.id].sum +=
+        Number(
+          r.rating
+        ) || 0;
+
+
+      reviewStats[p.id].count +=
+        1;
+
+
+      reviewStats[p.id].avg =
+        reviewStats[p.id].sum /
+        reviewStats[p.id].count;
+
     }
+  );
 
-    reviewStats[p.id] ||= {
-      sum: 0,
-      count: 0,
-      avg: 0,
-    };
 
-    reviewStats[p.id].sum += Number(r.rating) || 0;
+  renderCarousel(
+    activeCat
+  );
 
-    reviewStats[p.id].count += 1;
 
-    reviewStats[p.id].avg = reviewStats[p.id].sum / reviewStats[p.id].count;
-  });
+  reviewsCarousel.innerHTML =
+    "";
 
-  renderCarousel(activeCat);
 
-  reviewsCarousel.innerHTML = "";
+  if (
+    !reviews ||
+    !reviews.length
+  ) {
 
-  if (!reviews || !reviews.length) {
-    reviewsCarousel.style.display = "none";
+    reviewsCarousel.style.display =
+      "none";
 
-    reviewsEmpty.style.display = "block";
+    reviewsEmpty.style.display =
+      "block";
 
     return;
   }
 
-  reviewsEmpty.style.display = "none";
 
-  reviewsCarousel.style.display = "flex";
+  reviewsEmpty.style.display =
+    "none";
 
-  reviews.forEach((review) => {
-    const card = document.createElement("article");
+  reviewsCarousel.style.display =
+    "flex";
 
-    card.className = "review-card";
 
-    const photo = document.createElement("div");
+  reviews.forEach(
+    review => {
 
-    photo.className = "review-photo";
+      const card =
+        document.createElement(
+          "article"
+        );
 
-    if (review.photoUrl) {
-      const img = document.createElement("img");
+      card.className =
+        "review-card";
 
-      img.src = review.photoUrl;
 
-      img.alt = "Customer photo for " + escapeText(review.scent);
+      const photo =
+        document.createElement(
+          "div"
+        );
 
-      img.loading = "lazy";
+      photo.className =
+        "review-photo";
 
-      photo.appendChild(img);
-    } else {
-      photo.classList.add("empty");
 
-      photo.textContent = "CUSTOMER REVIEW";
+      if (
+        review.photoUrl
+      ) {
+
+        const img =
+          document.createElement(
+            "img"
+          );
+
+        img.src =
+          review.photoUrl;
+
+        img.alt =
+          "Customer photo for " +
+          escapeText(
+            review.scent
+          );
+
+        img.loading =
+          "lazy";
+
+        photo.appendChild(
+          img
+        );
+
+      } else {
+
+        photo.classList.add(
+          "empty"
+        );
+
+        photo.textContent =
+          "CUSTOMER REVIEW";
+
+      }
+
+
+      const body =
+        document.createElement(
+          "div"
+        );
+
+      body.className =
+        "review-body";
+
+
+      const stars =
+        document.createElement(
+          "div"
+        );
+
+      stars.className =
+        "review-stars";
+
+
+      const rating =
+        Math.max(
+          1,
+          Math.min(
+            5,
+            Number(
+              review.rating
+            ) || 5
+          )
+        );
+
+
+      stars.textContent =
+        "★".repeat(
+          rating
+        ) +
+        "☆".repeat(
+          5 - rating
+        );
+
+
+      const text =
+        document.createElement(
+          "p"
+        );
+
+      text.className =
+        "review-text";
+
+      text.textContent =
+        review.review ||
+        "";
+
+
+      const meta =
+        document.createElement(
+          "div"
+        );
+
+      meta.className =
+        "review-meta";
+
+
+      const name =
+        document.createElement(
+          "span"
+        );
+
+      name.className =
+        "review-name";
+
+      name.textContent =
+        review.customerName ||
+        review.name ||
+        "Customer";
+
+
+      const scent =
+        document.createElement(
+          "span"
+        );
+
+      scent.className =
+        "review-scent";
+
+      scent.textContent =
+        (
+          review.scent ||
+          ""
+        ).toUpperCase();
+
+
+      meta.append(
+        name,
+        scent
+      );
+
+
+      body.append(
+        stars,
+        text,
+        meta
+      );
+
+
+      card.append(
+        photo,
+        body
+      );
+
+
+      reviewsCarousel.appendChild(
+        card
+      );
+
     }
-
-    const body = document.createElement("div");
-
-    body.className = "review-body";
-
-    const stars = document.createElement("div");
-
-    stars.className = "review-stars";
-
-    const rating = Math.max(1, Math.min(5, Number(review.rating) || 5));
-
-    stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
-
-    const text = document.createElement("p");
-
-    text.className = "review-text";
-
-    text.textContent = review.review || "";
-
-    const meta = document.createElement("div");
-
-    meta.className = "review-meta";
-
-    const name = document.createElement("span");
-
-    name.className = "review-name";
-
-    name.textContent = review.customerName || review.name || "Customer";
-
-    const scent = document.createElement("span");
-
-    scent.className = "review-scent";
-
-    scent.textContent = (review.scent || "").toUpperCase();
-
-    meta.append(name, scent);
-
-    body.append(stars, text, meta);
-
-    card.append(photo, body);
-
-    reviewsCarousel.appendChild(card);
-  });
+  );
 }
+
 
 // ============================================================
 // LOAD REVIEWS
 // ============================================================
 
 function loadReviews() {
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+
+  if (
+    GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "PASTE_YOUR_"
+    )
+  ) {
+
     reviewsLoading.textContent =
       "Connect the Google Apps Script URL to load customer reviews.";
 
     return;
   }
 
-  const callbackName = "__auraReviews_" + Date.now();
 
-  window[callbackName] = function (data) {
-    try {
-      if (!data || !data.success) {
-        throw new Error(data?.message || "Unable to load reviews.");
+  const callbackName =
+    "__auraReviews_" +
+    Date.now();
+
+
+  window[callbackName] =
+    function(data) {
+
+      try {
+
+        if (
+          !data ||
+          !data.success
+        ) {
+
+          throw new Error(
+            data?.message ||
+            "Unable to load reviews."
+          );
+
+        }
+
+
+        renderReviews(
+          data.reviews ||
+          []
+        );
+
+
+      } catch (err) {
+
+        reviewsLoading.textContent =
+          "Customer reviews are temporarily unavailable.";
+
+      } finally {
+
+        cleanup();
+
       }
 
-      renderReviews(data.reviews || []);
-    } catch (err) {
-      reviewsLoading.textContent =
-        "Customer reviews are temporarily unavailable.";
-    } finally {
-      cleanup();
-    }
-  };
+    };
 
-  const script = document.createElement("script");
 
-  let finished = false;
+  const script =
+    document.createElement(
+      "script"
+    );
 
-  const cleanup = () => {
-    if (finished) {
-      return;
-    }
 
-    finished = true;
+  let finished =
+    false;
 
-    delete window[callbackName];
 
-    script.remove();
-  };
+  const cleanup =
+    () => {
+
+      if (finished) {
+        return;
+      }
+
+      finished =
+        true;
+
+      delete window[
+        callbackName
+      ];
+
+      script.remove();
+
+    };
+
 
   script.src =
     GOOGLE_SHEETS_WEB_APP_URL +
-    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
+    (
+      GOOGLE_SHEETS_WEB_APP_URL.includes(
+        "?"
+      )
+        ? "&"
+        : "?"
+    ) +
     "action=reviews&callback=" +
-    encodeURIComponent(callbackName);
+    encodeURIComponent(
+      callbackName
+    );
 
-  script.onerror = () => {
-    reviewsLoading.textContent =
-      "Customer reviews are temporarily unavailable.";
 
-    cleanup();
-  };
+  script.onerror =
+    () => {
 
-  document.body.appendChild(script);
+      reviewsLoading.textContent =
+        "Customer reviews are temporarily unavailable.";
+
+      cleanup();
+
+    };
+
+
+  document.body.appendChild(
+    script
+  );
 }
+
 
 // ============================================================
 // COMPRESS REVIEW IMAGE
 // ============================================================
 
-function compressReviewImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+function compressReviewImage(
+  file
+) {
 
-    reader.onload = () => {
-      const img = new Image();
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
 
-      img.onload = () => {
-        const maxSide = 1200;
+      const reader =
+        new FileReader();
 
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
 
-        const canvas = document.createElement("canvas");
+      reader.onload =
+        () => {
 
-        canvas.width = Math.max(1, Math.round(img.width * scale));
+          const img =
+            new Image();
 
-        canvas.height = Math.max(1, Math.round(img.height * scale));
 
-        const ctx = canvas.getContext("2d");
+          img.onload =
+            () => {
 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const maxSide =
+                1200;
 
-        resolve(canvas.toDataURL("image/jpeg", 0.78));
-      };
 
-      img.onerror = () =>
-        reject(new Error("The selected image could not be read."));
+              const scale =
+                Math.min(
+                  1,
+                  maxSide /
+                    Math.max(
+                      img.width,
+                      img.height
+                    )
+                );
 
-      img.src = reader.result;
-    };
 
-    reader.onerror = () =>
-      reject(new Error("The selected image could not be read."));
+              const canvas =
+                document.createElement(
+                  "canvas"
+                );
 
-    reader.readAsDataURL(file);
-  });
+
+              canvas.width =
+                Math.max(
+                  1,
+                  Math.round(
+                    img.width *
+                    scale
+                  )
+                );
+
+
+              canvas.height =
+                Math.max(
+                  1,
+                  Math.round(
+                    img.height *
+                    scale
+                  )
+                );
+
+
+              const ctx =
+                canvas.getContext(
+                  "2d"
+                );
+
+
+              ctx.drawImage(
+                img,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
+
+
+              resolve(
+                canvas.toDataURL(
+                  "image/jpeg",
+                  0.78
+                )
+              );
+
+            };
+
+
+          img.onerror =
+            () =>
+              reject(
+                new Error(
+                  "The selected image could not be read."
+                )
+              );
+
+
+          img.src =
+            reader.result;
+
+        };
+
+
+      reader.onerror =
+        () =>
+          reject(
+            new Error(
+              "The selected image could not be read."
+            )
+          );
+
+
+      reader.readAsDataURL(
+        file
+      );
+
+    }
+  );
 }
+
 
 // ============================================================
 // REVIEW FORM
 // ============================================================
 
-reviewForm.addEventListener("submit", async function (e) {
-  e.preventDefault();
+reviewForm.addEventListener(
+  "submit",
+  async function(e) {
 
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
-    showReviewStatus("Add your Google Apps Script Web App URL first.", "error");
+    e.preventDefault();
 
-    return;
-  }
 
-  const file = document.getElementById("reviewPhoto").files[0];
+    if (
+      GOOGLE_SHEETS_WEB_APP_URL.includes(
+        "PASTE_YOUR_"
+      )
+    ) {
 
-  if (!file) {
-    showReviewStatus("Please attach a photo with your review.", "error");
-
-    return;
-  }
-
-  if (!file.type.startsWith("image/")) {
-    showReviewStatus("Please upload an image file.", "error");
-
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    showReviewStatus("Please choose an image smaller than 5 MB.", "error");
-
-    return;
-  }
-
-  reviewSubmit.disabled = true;
-
-  reviewSubmit.textContent = "UPLOADING…";
-
-  showReviewStatus("Preparing your photo and review…", "success");
-
-  try {
-    const photoData = await compressReviewImage(file);
-
-    if (photoData.length > 1600000) {
-      throw new Error(
-        "The photo is still too large after compression. Please choose another image.",
+      showReviewStatus(
+        "Add your Google Apps Script Web App URL first.",
+        "error"
       );
-    }
 
-    const selectedScent = catalog.all().find((p) => p.id === reviewScent.value);
-
-    const payload = new URLSearchParams({
-      action: "submitReview",
-
-      name: document.getElementById("reviewName").value.trim(),
-
-      scent: selectedScent ? selectedScent.name : reviewScent.value,
-
-      scentId: reviewScent.value,
-
-      rating: reviewRating.value,
-
-      review: document.getElementById("reviewText").value.trim(),
-
-      photo: photoData,
-    });
-
-    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-
-      body: payload.toString(),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.message || "Unable to submit review.");
-    }
-
-    showReviewStatus(
-      "Thank you! Your review was submitted and will appear after approval.",
-      "success",
-    );
-
-    reviewForm.reset();
-
-    setRating(5);
-
-    renderReviewScentOptions();
-  } catch (err) {
-    console.error(err);
-
-    showReviewStatus(
-      err.message || "Unable to submit your review. Please try again.",
-      "error",
-    );
-  } finally {
-    reviewSubmit.disabled = false;
-
-    reviewSubmit.textContent = "SUBMIT REVIEW";
-  }
-});
-
-loadReviews();
-
-// ============================================================
-// FIND YOUR SCENT QUIZ
-// ============================================================
-
-const quizAnswers = {};
-
-// ------------------------------------------------------------
-// QUIZ OPTION SELECTION
-// ------------------------------------------------------------
-
-document.querySelectorAll(".quiz-options").forEach((group) => {
-  group.addEventListener("click", (e) => {
-    const btn = e.target.closest(".quiz-option");
-
-    if (!btn) {
       return;
     }
 
-    const q = group.dataset.question;
 
-    let value = btn.dataset.value || "";
+    const file =
+      document.getElementById(
+        "reviewPhoto"
+      ).files[0];
 
-    // Strength values are normalized
-    // to:
-    //
-    // subtle
-    // moderate
-    // bold
 
-    if (q === "strength") {
-      value = normalizeStrength(value);
+    if (!file) {
+
+      showReviewStatus(
+        "Please attach a photo with your review.",
+        "error"
+      );
+
+      return;
     }
 
-    quizAnswers[q] = value;
 
-    group
-      .querySelectorAll(".quiz-option")
-      .forEach((b) => b.classList.toggle("active", b === btn));
-  });
-});
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+
+      showReviewStatus(
+        "Please upload an image file.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (
+      file.size >
+      5 * 1024 * 1024
+    ) {
+
+      showReviewStatus(
+        "Please choose an image smaller than 5 MB.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    reviewSubmit.disabled =
+      true;
+
+    reviewSubmit.textContent =
+      "UPLOADING…";
+
+
+    showReviewStatus(
+      "Preparing your photo and review…",
+      "success"
+    );
+
+
+    try {
+
+      const photoData =
+        await compressReviewImage(
+          file
+        );
+
+
+      if (
+        photoData.length >
+        1600000
+      ) {
+
+        throw new Error(
+          "The photo is still too large after compression. Please choose another image."
+        );
+
+      }
+
+
+      const selectedScent =
+        catalog
+          .all()
+          .find(
+            p =>
+              p.id ===
+              reviewScent.value
+          );
+
+
+      const payload =
+        new URLSearchParams({
+
+          action:
+            "submitReview",
+
+          name:
+            document
+              .getElementById(
+                "reviewName"
+              )
+              .value
+              .trim(),
+
+          scent:
+            selectedScent
+              ? selectedScent.name
+              : reviewScent.value,
+
+          scentId:
+            reviewScent.value,
+
+          rating:
+            reviewRating.value,
+
+          review:
+            document
+              .getElementById(
+                "reviewText"
+              )
+              .value
+              .trim(),
+
+          photo:
+            photoData
+
+        });
+
+
+      const response =
+        await fetch(
+          GOOGLE_SHEETS_WEB_APP_URL,
+          {
+
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8"
+            },
+
+            body:
+              payload.toString()
+
+          }
+        );
+
+
+      const result =
+        await response.json();
+
+
+      if (
+        !result.success
+      ) {
+
+        throw new Error(
+          result.message ||
+          "Unable to submit review."
+        );
+
+      }
+
+
+      showReviewStatus(
+        "Thank you! Your review was submitted and will appear after approval.",
+        "success"
+      );
+
+
+      reviewForm.reset();
+
+      setRating(5);
+
+      renderReviewScentOptions();
+
+
+    } catch (err) {
+
+      console.error(
+        err
+      );
+
+
+      showReviewStatus(
+        err.message ||
+          "Unable to submit your review. Please try again.",
+        "error"
+      );
+
+
+    } finally {
+
+      reviewSubmit.disabled =
+        false;
+
+      reviewSubmit.textContent =
+        "SUBMIT REVIEW";
+
+    }
+
+  }
+);
+
+
+loadReviews();
+
 
 // ============================================================
 // FIND YOUR SCENT QUIZ
 // ============================================================
 
-const quizAnswers = {
-  profile: [],
-  occasion: "",
-  strength: "",
-};
+const quizAnswers =
+  {};
 
-// ============================================================
-// FIND YOUR SCENT PROFILE / CHARACTER LIST
-// ============================================================
 
-const SCENT_PROFILES = [
-  "Fresh",
-  "Spicy",
-  "Citrus",
-  "Amber",
-  "Woody",
-  "Aquatic",
-  "Sweet",
-  "Warm",
-  "Vanilla",
-  "Chestnut",
-  "Marine",
-  "Aromatic",
-  "Minty",
-  "Floral",
-  "Rose",
-  "Powdery",
-  "Coffee",
-  "Musky",
-  "Fruity",
-];
-
-// ============================================================
-// NORMALIZE PROFILE
-// ============================================================
-
-function normalizeProfile(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
-}
-
-// ============================================================
-// CREATE PROFILE OPTIONS DYNAMICALLY
-//
-// This automatically creates all Find Your Scent
-// character/profile buttons.
-//
-// Existing HTML only needs:
-//
-// <div class="quiz-options" data-question="profile"></div>
-// ============================================================
-
-function renderScentProfileQuizOptions() {
-  const profileGroup = document.querySelector(
-    '.quiz-options[data-question="profile"]',
-  );
-
-  if (!profileGroup) {
-    console.warn(
-      'Find Your Scent profile group [data-question="profile"] was not found.',
-    );
-
-    return;
-  }
-
-  profileGroup.innerHTML = SCENT_PROFILES.map((profile) => {
-    const value = normalizeProfile(profile);
-
-    return `
-      <button
-        type="button"
-        class="quiz-option"
-        data-value="${escapeHTML(value)}"
-      >
-        ${escapeHTML(profile)}
-      </button>
-    `;
-  }).join("");
-}
-
-// ============================================================
+// ------------------------------------------------------------
 // QUIZ OPTION SELECTION
-//
-// PROFILE / CHARACTER:
-// Multiple selection
-//
-// OCCASION:
-// Single selection
-//
-// STRENGTH:
-// Single selection
-// ============================================================
+// ------------------------------------------------------------
 
-function setupQuizOptions() {
-  const quizGroups = document.querySelectorAll(".quiz-options");
+document
+  .querySelectorAll(
+    ".quiz-options"
+  )
+  .forEach(
+    group => {
 
-  quizGroups.forEach((group) => {
-    group.addEventListener("click", (e) => {
-      const btn = e.target.closest(".quiz-option");
+      group.addEventListener(
+        "click",
+        e => {
 
-      if (!btn) {
-        return;
-      }
+          const btn =
+            e.target.closest(
+              ".quiz-option"
+            );
 
-      const question = group.dataset.question;
 
-      let value = btn.dataset.value || "";
-
-      // ======================================================
-      // PROFILE / CHARACTER
-      //
-      // MULTIPLE SELECTION
-      // ======================================================
-
-      if (question === "profile") {
-        const profile = normalizeProfile(value);
-
-        if (!profile) {
-          return;
-        }
-
-        const currentProfiles = Array.isArray(quizAnswers.profile)
-          ? quizAnswers.profile
-          : [];
-
-        const exists = currentProfiles.includes(profile);
-
-        if (exists) {
-          // Remove selected profile
-          quizAnswers.profile = currentProfiles.filter(
-            (item) => item !== profile,
-          );
-        } else {
-          // Add selected profile
-          quizAnswers.profile = [...currentProfiles, profile];
-        }
-
-        // Update visual selected state
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          const optionValue = normalizeProfile(option.dataset.value);
-
-          option.classList.toggle(
-            "active",
-            quizAnswers.profile.includes(optionValue),
-          );
-        });
-
-        return;
-      }
-
-      // ======================================================
-      // STRENGTH
-      //
-      // SINGLE SELECTION
-      // ======================================================
-
-      if (question === "strength") {
-        value = normalizeStrength(value);
-
-        quizAnswers.strength = value;
-
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          option.classList.toggle("active", option === btn);
-        });
-
-        return;
-      }
-
-      // ======================================================
-      // OCCASION
-      //
-      // SINGLE SELECTION
-      // ======================================================
-
-      if (question === "occasion") {
-        quizAnswers.occasion = normalizeProfile(value);
-
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          option.classList.toggle("active", option === btn);
-        });
-
-        return;
-      }
-
-      // ======================================================
-      // OTHER QUIZ QUESTIONS
-      //
-      // Keep original single-select behavior
-      // ======================================================
-
-      quizAnswers[question] = value;
-
-      group.querySelectorAll(".quiz-option").forEach((option) => {
-        option.classList.toggle("active", option === btn);
-      });
-    });
-  });
-}
-
-// ============================================================
-// INITIALIZE QUIZ OPTIONS
-// ============================================================
-
-renderScentProfileQuizOptions();
-
-setupQuizOptions();
-
-// ============================================================
-// FIND MY SCENT
-// ============================================================
-
-document.getElementById("findScentBtn")?.addEventListener("click", () => {
-  // ==========================================================
-  // SELECTED PROFILE / CHARACTER
-  // ==========================================================
-
-  const selectedProfiles = Array.isArray(quizAnswers.profile)
-    ? quizAnswers.profile
-        .map((profile) => normalizeProfile(profile))
-        .filter(Boolean)
-    : [];
-
-  // ==========================================================
-  // SELECTED OCCASION
-  // ==========================================================
-
-  const selectedOccasion = normalizeProfile(quizAnswers.occasion);
-
-  // ==========================================================
-  // SELECTED STRENGTH
-  // ==========================================================
-
-  const selectedStrength = normalizeStrength(quizAnswers.strength);
-
-  // ==========================================================
-  // SCORE PRODUCTS
-  // ==========================================================
-
-  const scores = catalog
-    .all()
-    .filter((product) => product.active !== false)
-    .map((product) => {
-      const meta = PRODUCT_META[product.id] || {};
-
-      let score = 0;
-
-      // ======================================================
-      // PRODUCT PROFILES
-      // ======================================================
-
-      const productProfiles = Array.isArray(meta.profiles)
-        ? meta.profiles
-            .map((profile) => normalizeProfile(profile))
-            .filter(Boolean)
-        : String(meta.profiles || "")
-            .split(",")
-            .map((profile) => normalizeProfile(profile))
-            .filter(Boolean);
-
-      // ======================================================
-      // MULTIPLE PROFILE MATCH
-      //
-      // Every selected profile that matches the perfume
-      // adds points.
-      //
-      // Example:
-      //
-      // User:
-      // Fresh + Citrus + Aquatic
-      //
-      // Perfume:
-      // Fresh + Citrus
-      //
-      // Score:
-      // +4 Fresh
-      // +4 Citrus
-      // = +8
-      // ======================================================
-
-      if (selectedProfiles.length) {
-        selectedProfiles.forEach((selectedProfile) => {
-          if (productProfiles.includes(selectedProfile)) {
-            score += 4;
+          if (!btn) {
+            return;
           }
-        });
-      }
 
-      // ======================================================
-      // OCCASION MATCH
-      // ======================================================
 
-      const productOccasions = Array.isArray(meta.occasion)
-        ? meta.occasion
-            .map((value) => normalizeProfile(value))
-            .filter(Boolean)
-        : String(meta.occasion || "")
-            .split(",")
-            .map((value) => normalizeProfile(value))
-            .filter(Boolean);
+          const q =
+            group.dataset.question;
 
-      if (
-        selectedOccasion &&
-        productOccasions.includes(selectedOccasion)
-      ) {
-        score += 3;
-      }
 
-      // ======================================================
-      // STRENGTH MATCH
-      // ======================================================
+          let value =
+            btn.dataset.value ||
+            "";
 
-      const productStrength = normalizeStrength(meta.strength);
 
-      if (
-        quizAnswers.strength &&
-        productStrength === selectedStrength
-      ) {
-        score += 2;
-      }
+          // Strength values are normalized
+          // to:
+          //
+          // subtle
+          // moderate
+          // bold
 
-      // ======================================================
-      // RETURN SCORE
-      // ======================================================
+          if (
+            q === "strength"
+          ) {
 
-      return {
-        p: product,
-        score,
-        matchedProfiles: selectedProfiles.filter((profile) =>
-          productProfiles.includes(profile),
-        ),
-      };
-    })
-    .sort((a, b) => {
-      // Highest score first
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
+            value =
+              normalizeStrength(
+                value
+              );
 
-      // If tied, prefer more matching profiles
-      return b.matchedProfiles.length - a.matchedProfiles.length;
-    });
+          }
 
-  // ==========================================================
-  // GET WINNER
-  // ==========================================================
 
-  const winner = scores[0]?.p || catalog.all()[0];
+          quizAnswers[q] =
+            value;
 
-  if (!winner) {
-    return;
-  }
 
-  // ==========================================================
-  // DISPLAY RESULT
-  // ==========================================================
+          group
+            .querySelectorAll(
+              ".quiz-option"
+            )
+            .forEach(
+              b =>
+                b.classList.toggle(
+                  "active",
+                  b === btn
+                )
+            );
 
-  document.getElementById("quizResultName").textContent =
-    winner.name;
+        }
+      );
 
-  // Get winner metadata
-  const winnerMeta = PRODUCT_META[winner.id] || {};
-
-  const winnerProfiles = Array.isArray(winnerMeta.profiles)
-    ? winnerMeta.profiles
-    : String(winnerMeta.profiles || "")
-        .split(",")
-        .map((profile) => profile.trim())
-        .filter(Boolean);
-
-  // ==========================================================
-  // MATCHED PROFILE DISPLAY
-  // ==========================================================
-
-  const matchedProfiles = selectedProfiles.filter((selected) =>
-    winnerProfiles.some(
-      (profile) =>
-        normalizeProfile(profile) === normalizeProfile(selected),
-    ),
+    }
   );
 
-  let resultText = winner.desc || "";
 
-  if (matchedProfiles.length) {
-    resultText +=
-      " Your selected scent character" +
-      (matchedProfiles.length > 1 ? "s are: " : " is: ") +
-      matchedProfiles
-        .map(
-          (profile) =>
-            profile.charAt(0).toUpperCase() + profile.slice(1),
+// ------------------------------------------------------------
+// FIND SCENT
+// ------------------------------------------------------------
+
+document
+  .getElementById(
+    "findScentBtn"
+  )
+  .addEventListener(
+    "click",
+    () => {
+
+      const scores =
+        catalog
+          .all()
+          .map(
+            p => {
+
+              const meta =
+                PRODUCT_META[
+                  p.id
+                ] || {};
+
+
+              let score =
+                0;
+
+
+              // ------------------------------------------------
+              // PROFILE MATCH
+              // ------------------------------------------------
+
+              const productProfiles =
+                Array.isArray(
+                  meta.profiles
+                )
+
+                  ? meta.profiles.map(
+                      profile =>
+                        String(
+                          profile
+                        )
+                          .trim()
+                          .toLowerCase()
+                    )
+
+                  : String(
+                      meta.profiles ||
+                      ""
+                    )
+                      .split(",")
+                      .map(
+                        profile =>
+                          profile
+                            .trim()
+                            .toLowerCase()
+                      )
+                      .filter(
+                        Boolean
+                      );
+
+
+              if (
+                quizAnswers.profile &&
+                productProfiles.includes(
+                  String(
+                    quizAnswers.profile
+                  )
+                    .trim()
+                    .toLowerCase()
+                )
+              ) {
+
+                score +=
+                  4;
+
+              }
+
+
+              // ------------------------------------------------
+              // OCCASION MATCH
+              // ------------------------------------------------
+
+              const productOccasions =
+                Array.isArray(
+                  meta.occasion
+                )
+
+                  ? meta.occasion.map(
+                      value =>
+                        String(
+                          value
+                        )
+                          .trim()
+                          .toLowerCase()
+                    )
+
+                  : String(
+                      meta.occasion ||
+                      ""
+                    )
+                      .split(",")
+                      .map(
+                        value =>
+                          value
+                            .trim()
+                            .toLowerCase()
+                      )
+                      .filter(
+                        Boolean
+                      );
+
+
+              if (
+                quizAnswers.occasion &&
+                productOccasions.includes(
+                  String(
+                    quizAnswers.occasion
+                  )
+                    .trim()
+                    .toLowerCase()
+                )
+              ) {
+
+                score +=
+                  3;
+
+              }
+
+
+              // ------------------------------------------------
+              // STRENGTH MATCH
+              // ------------------------------------------------
+
+              const productStrength =
+                normalizeStrength(
+                  meta.strength
+                );
+
+
+              const selectedStrength =
+                normalizeStrength(
+                  quizAnswers.strength
+                );
+
+
+              if (
+                quizAnswers.strength &&
+                productStrength ===
+                  selectedStrength
+              ) {
+
+                score +=
+                  2;
+
+              }
+
+
+              return {
+                p,
+                score
+              };
+
+            }
+          )
+          .sort(
+            (a, b) =>
+              b.score -
+              a.score
+          );
+
+
+      const winner =
+        scores[0]?.p ||
+        catalog.all()[0];
+
+
+      if (!winner) {
+        return;
+      }
+
+
+      document
+        .getElementById(
+          "quizResultName"
         )
-        .join(", ") +
-      ".";
-  }
+        .textContent =
+        winner.name;
 
-  if (winner.occasion) {
-    resultText +=
-      " Best suited for: " +
-      winner.occasion +
-      ".";
-  }
 
-  document.getElementById("quizResultText").textContent =
-    resultText;
+      document
+        .getElementById(
+          "quizResultText"
+        )
+        .textContent =
+        winner.desc +
+        " Best suited for: " +
+        (
+          winner.occasion ||
+          "versatile wear"
+        ) +
+        ".";
 
-  // ==========================================================
-  // SHOW RESULT
-  // ==========================================================
 
-  document.getElementById("quizResult").classList.add("show");
+      document
+        .getElementById(
+          "quizResult"
+        )
+        .classList.add(
+          "show"
+        );
 
-  // ==========================================================
-  // SET ORDER BUTTON
-  // ==========================================================
 
-  document.getElementById("quizOrderBtn").dataset.id =
-    winner.id;
-});
+      document
+        .getElementById(
+          "quizOrderBtn"
+        )
+        .dataset.id =
+        winner.id;
+
+    }
+  );
+
 
 // ============================================================
 // QUIZ ORDER BUTTON
 // ============================================================
 
-document.getElementById("quizOrderBtn")?.addEventListener(
-  "click",
-  (e) => {
-    const productId = e.currentTarget.dataset.id;
+document
+  .getElementById(
+    "quizOrderBtn"
+  )
+  .addEventListener(
+    "click",
+    e => {
 
-    if (!productId) {
-      return;
+      scentSelect.value =
+        e.currentTarget.dataset.id;
+
+
+      document
+        .getElementById(
+          "order"
+        )
+        .scrollIntoView({
+          behavior:
+            "smooth"
+        });
+
     }
+  );
 
-    scentSelect.value = productId;
-
-    syncQuantity();
-
-    document.getElementById("order")?.scrollIntoView({
-      behavior: "smooth",
-    });
-  },
-);
 
 // ============================================================
 // BUILD YOUR DUO
 // ============================================================
 
-const duoOne = document.getElementById("duoOne");
-
-const duoTwo = document.getElementById("duoTwo");
-
-const duoTotal = document.getElementById("duoTotal");
-
-[duoOne, duoTwo].forEach((select) => {
-  select.innerHTML = catalog
-    .all()
-    .map((p) => `<option value="${p.id}">${p.name}</option>`)
-    .join("");
-
-  select.addEventListener(
-    "change",
-    () =>
-      (duoTotal.textContent = `2 bottles • ₱${(
-        PRODUCT_PRICE * 2
-      ).toLocaleString()}`),
+const duoOne =
+  document.getElementById(
+    "duoOne"
   );
-});
 
-document.getElementById("duoOrderBtn").addEventListener("click", () => {
-  const names = [duoOne.value, duoTwo.value];
+const duoTwo =
+  document.getElementById(
+    "duoTwo"
+  );
 
-  scentSelect.value = names[0];
+const duoTotal =
+  document.getElementById(
+    "duoTotal"
+  );
 
-  document.getElementById("qtyNumber").value = 2;
 
-  syncQuantity();
+[
+  duoOne,
+  duoTwo
+].forEach(
+  select => {
 
-  document.getElementById("notes").value =
-    "Duo: " + names.map((id) => catalog.find(id)?.name || id).join(" + ");
+    select.innerHTML =
+      catalog
+        .all()
+        .map(
+          p =>
+            `<option value="${p.id}">${p.name}</option>`
+        )
+        .join("");
 
-  document.getElementById("order").scrollIntoView({
-    behavior: "smooth",
-  });
-});
+
+    select.addEventListener(
+      "change",
+      () =>
+        duoTotal.textContent =
+          `2 bottles • ₱${(
+            PRODUCT_PRICE * 2
+          ).toLocaleString()}`
+    );
+
+  }
+);
+
+
+document
+  .getElementById(
+    "duoOrderBtn"
+  )
+  .addEventListener(
+    "click",
+    () => {
+
+      const names =
+        [
+          duoOne.value,
+          duoTwo.value
+        ];
+
+
+      scentSelect.value =
+        names[0];
+
+
+      document
+        .getElementById(
+          "qtyNumber"
+        )
+        .value =
+        2;
+
+
+      syncQuantity();
+
+
+      document
+        .getElementById(
+          "notes"
+        )
+        .value =
+        "Duo: " +
+        names
+          .map(
+            id =>
+              catalog.find(
+                id
+              )?.name ||
+              id
+          )
+          .join(
+            " + "
+          );
+
+
+      document
+        .getElementById(
+          "order"
+        )
+        .scrollIntoView({
+          behavior:
+            "smooth"
+        });
+
+    }
+  );
+
 
 // ============================================================
 // ORDER FORM
 // ============================================================
 
-const form = document.getElementById("orderForm");
+const form =
+  document.getElementById(
+    "orderForm"
+  );
 
-const summaryEmpty = document.getElementById("summaryEmpty");
+const summaryEmpty =
+  document.getElementById(
+    "summaryEmpty"
+  );
 
-const summaryLines = document.getElementById("summaryLines");
+const summaryLines =
+  document.getElementById(
+    "summaryLines"
+  );
 
-const summaryActions = document.getElementById("summaryActions");
+const summaryActions =
+  document.getElementById(
+    "summaryActions"
+  );
 
-const copyBtn = document.getElementById("copyBtn");
+const copyBtn =
+  document.getElementById(
+    "copyBtn"
+  );
 
-const qtyNumber = document.getElementById("qtyNumber");
+const qtyNumber =
+  document.getElementById(
+    "qtyNumber"
+  );
 
-const qtyHidden = document.getElementById("qty");
+const qtyHidden =
+  document.getElementById(
+    "qty"
+  );
 
-const liveTotal = document.getElementById("liveTotal");
+const liveTotal =
+  document.getElementById(
+    "liveTotal"
+  );
+
 
 // ============================================================
 // QUANTITY
 // ============================================================
 
 function syncQuantity() {
-  let n = Math.max(1, Math.min(10, parseInt(qtyNumber.value || "1", 10)));
 
-  qtyNumber.value = n;
+  let n =
+    Math.max(
+      1,
+      Math.min(
+        10,
+        parseInt(
+          qtyNumber.value ||
+            "1",
+          10
+        )
+      )
+    );
 
-  qtyHidden.value = n + (n === 1 ? " bottle" : " bottles");
 
-  const selectedId = scentSelect.value;
+  qtyNumber.value =
+    n;
 
-  const p = getProductById(selectedId);
+
+  qtyHidden.value =
+    n +
+    (
+      n === 1
+        ? " bottle"
+        : " bottles"
+    );
+
+
+  const selectedId =
+    scentSelect.value;
+
+
+  const p =
+    getProductById(
+      selectedId
+    );
+
 
   liveTotal.textContent =
     "Estimated total: ₱" +
     (
-      (p ? Number(p.price || PRODUCT_PRICE) : PRODUCT_PRICE) * n
+      (
+        p
+          ? Number(
+              p.price ||
+              PRODUCT_PRICE
+            )
+          : PRODUCT_PRICE
+      ) * n
     ).toLocaleString();
+
 
   return n;
 }
 
-document.getElementById("qtyMinus").addEventListener("click", () => {
-  qtyNumber.value = Number(qtyNumber.value || 1) - 1;
 
-  syncQuantity();
-});
+document
+  .getElementById(
+    "qtyMinus"
+  )
+  .addEventListener(
+    "click",
+    () => {
 
-document.getElementById("qtyPlus").addEventListener("click", () => {
-  qtyNumber.value = Number(qtyNumber.value || 1) + 1;
+      qtyNumber.value =
+        Number(
+          qtyNumber.value ||
+          1
+        ) - 1;
 
-  syncQuantity();
-});
+      syncQuantity();
 
-qtyNumber.addEventListener("input", syncQuantity);
+    }
+  );
 
-scentSelect.addEventListener("change", syncQuantity);
+
+document
+  .getElementById(
+    "qtyPlus"
+  )
+  .addEventListener(
+    "click",
+    () => {
+
+      qtyNumber.value =
+        Number(
+          qtyNumber.value ||
+          1
+        ) + 1;
+
+      syncQuantity();
+
+    }
+  );
+
+
+qtyNumber.addEventListener(
+  "input",
+  syncQuantity
+);
+
+
+scentSelect.addEventListener(
+  "change",
+  syncQuantity
+);
+
 
 syncQuantity();
 
 renderCart();
 
+
 // ============================================================
 // SUBMIT STATUS
 // ============================================================
 
-function showSubmitStatus(message, type) {
-  const status = document.getElementById("submitStatus");
+function showSubmitStatus(
+  message,
+  type
+) {
 
-  status.textContent = message;
+  const status =
+    document.getElementById(
+      "submitStatus"
+    );
 
-  status.className = "submit-status show " + type;
+
+  status.textContent =
+    message;
+
+
+  status.className =
+    "submit-status show " +
+    type;
 }
+
 
 // ============================================================
 // ORDER SUBMISSION
 // ============================================================
 
-form.addEventListener("submit", async function (e) {
-  e.preventDefault();
+form.addEventListener(
+  "submit",
+  async function(e) {
 
-  const submitBtn = document.getElementById("submitBtn");
+    e.preventDefault();
 
-  const data = new FormData(form);
 
-  if (!cart.length) {
-    showSubmitStatus(
-      "Please add at least one fragrance to your cart.",
-      "error",
-    );
+    const submitBtn =
+      document.getElementById(
+        "submitBtn"
+      );
 
-    return;
-  }
 
-  const quantityNumber = cart.reduce((sum, item) => sum + item.qty, 0);
+    const data =
+      new FormData(
+        form
+      );
 
-  const orderTotal = getCartTotal();
 
-  const scentName = cart
-    .map((item) => getProductById(item.id)?.name || item.id)
-    .join(", ");
+    if (!cart.length) {
 
-  const cartLines = cart
-    .map((item) => {
-      const p = getProductById(item.id);
+      showSubmitStatus(
+        "Please add at least one fragrance to your cart.",
+        "error"
+      );
 
-      return `
-              ${p.name} × ${item.qty} — ₱${(
-                Number(p.price || PRODUCT_PRICE) * item.qty
-              ).toLocaleString()}
-            `;
-    })
-    .join("\n");
-
-  const lines = [
-    "AURA & ESSENCE — Order",
-
-    "—————————————",
-
-    "Name: " + data.get("fullname"),
-
-    "Contact: " + data.get("contact"),
-
-    "Items:",
-
-    cartLines,
-
-    "Location: " + data.get("address"),
-
-    "Payment: " + data.get("payment"),
-
-    "Notes: " + (data.get("notes") || "—"),
-
-    "—————————————",
-
-    "Total items: " + quantityNumber,
-
-    "Estimated total: ₱" + orderTotal.toLocaleString(),
-  ].join("\n");
-
-  summaryLines.textContent = lines;
-
-  summaryEmpty.style.display = "none";
-
-  summaryLines.style.display = "block";
-
-  summaryActions.style.display = "flex";
-
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
-    showSubmitStatus(
-      "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
-      "error",
-    );
-
-    summaryLines.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-    });
-
-    return;
-  }
-
-  submitBtn.disabled = true;
-
-  submitBtn.textContent = "Saving Order…";
-
-  showSubmitStatus("Saving your order securely…", "success");
-
-  try {
-    const payload = new URLSearchParams({
-      fullname: data.get("fullname") || "",
-
-      contact: data.get("contact") || "",
-
-      scent: scentName,
-
-      scentId: cart.map((item) => item.id).join(","),
-
-      qty: quantityNumber + (quantityNumber === 1 ? " bottle" : " bottles"),
-
-      items: JSON.stringify(
-        cart.map((item) => ({
-          id: item.id,
-
-          name: getProductById(item.id)?.name || item.id,
-
-          qty: item.qty,
-        })),
-      ),
-
-      address: data.get("address") || "",
-
-      payment: data.get("payment") || "",
-
-      notes: data.get("notes") || "",
-
-      price: "430",
-
-      total: String(orderTotal),
-    });
-
-    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-
-      body: payload.toString(),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.message || "Unable to save the order.");
+      return;
     }
 
+
+    const quantityNumber =
+      cart.reduce(
+        (sum, item) =>
+          sum + item.qty,
+        0
+      );
+
+
+    const orderTotal =
+      getCartTotal();
+
+
+    const scentName =
+      cart
+        .map(
+          item =>
+            getProductById(
+              item.id
+            )?.name ||
+            item.id
+        )
+        .join(
+          ", "
+        );
+
+
+    const cartLines =
+      cart
+        .map(
+          item => {
+
+            const p =
+              getProductById(
+                item.id
+              );
+
+
+            return `
+              ${p.name} × ${
+                item.qty
+              } — ₱${
+                (
+                  Number(
+                    p.price ||
+                    PRODUCT_PRICE
+                  ) *
+                  item.qty
+                ).toLocaleString()
+              }
+            `;
+
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    const lines =
+      [
+        "AURA & ESSENCE — Order",
+
+        "—————————————",
+
+        "Name: " +
+          data.get(
+            "fullname"
+          ),
+
+        "Contact: " +
+          data.get(
+            "contact"
+          ),
+
+        "Items:",
+
+        cartLines,
+
+        "Location: " +
+          data.get(
+            "address"
+          ),
+
+        "Payment: " +
+          data.get(
+            "payment"
+          ),
+
+        "Notes: " +
+          (
+            data.get(
+              "notes"
+            ) ||
+            "—"
+          ),
+
+        "—————————————",
+
+        "Total items: " +
+          quantityNumber,
+
+        "Estimated total: ₱" +
+          orderTotal.toLocaleString()
+
+      ].join(
+        "\n"
+      );
+
+
+    summaryLines.textContent =
+      lines;
+
+    summaryEmpty.style.display =
+      "none";
+
+    summaryLines.style.display =
+      "block";
+
+    summaryActions.style.display =
+      "flex";
+
+
+    if (
+      GOOGLE_SHEETS_WEB_APP_URL.includes(
+        "PASTE_YOUR_"
+      )
+    ) {
+
+      showSubmitStatus(
+        "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
+        "error"
+      );
+
+      summaryLines.scrollIntoView({
+        behavior:
+          "smooth",
+        block:
+          "nearest"
+      });
+
+      return;
+    }
+
+
+    submitBtn.disabled =
+      true;
+
+    submitBtn.textContent =
+      "Saving Order…";
+
+
     showSubmitStatus(
-      "Order saved successfully. We received your order and will contact you soon.",
-      "success",
+      "Saving your order securely…",
+      "success"
     );
 
-    document.getElementById("confirmationOrderId").textContent =
-      result.orderId || "ORDER RECEIVED";
 
-    document.getElementById("confirmationMessage").textContent = `Thank you, ${
-      data.get("fullname") || "customer"
-    }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
+    try {
 
-    document.getElementById("confirmationModal").classList.add("show");
+      const payload =
+        new URLSearchParams({
 
-    document
-      .getElementById("confirmationModal")
-      .setAttribute("aria-hidden", "false");
+          fullname:
+            data.get(
+              "fullname"
+            ) || "",
 
-    form.reset();
+          contact:
+            data.get(
+              "contact"
+            ) || "",
 
-    qtyNumber.value = 1;
+          scent:
+            scentName,
 
-    cart = [];
+          scentId:
+            cart
+              .map(
+                item =>
+                  item.id
+              )
+              .join(","),
 
-    localStorage.removeItem("aeCart");
+          qty:
+            quantityNumber +
+            (
+              quantityNumber === 1
+                ? " bottle"
+                : " bottles"
+            ),
 
-    syncQuantity();
+          items:
+            JSON.stringify(
+              cart.map(
+                item => ({
+                  id:
+                    item.id,
 
-    renderCart();
+                  name:
+                    getProductById(
+                      item.id
+                    )?.name ||
+                    item.id,
 
-    renderScentOptions();
-  } catch (err) {
-    console.error(err);
+                  qty:
+                    item.qty
+                })
+              )
+            ),
 
-    showSubmitStatus(
-      "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
-      "error",
-    );
-  } finally {
-    submitBtn.disabled = false;
+          address:
+            data.get(
+              "address"
+            ) || "",
 
-    submitBtn.textContent = "Submit Order";
+          payment:
+            data.get(
+              "payment"
+            ) || "",
+
+          notes:
+            data.get(
+              "notes"
+            ) || "",
+
+          price:
+            "430",
+
+          total:
+            String(
+              orderTotal
+            )
+
+        });
+
+
+      const response =
+        await fetch(
+          GOOGLE_SHEETS_WEB_APP_URL,
+          {
+
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8"
+            },
+
+            body:
+              payload.toString()
+
+          }
+        );
+
+
+      const result =
+        await response.json();
+
+
+      if (
+        !result.success
+      ) {
+
+        throw new Error(
+          result.message ||
+          "Unable to save the order."
+        );
+
+      }
+
+
+      showSubmitStatus(
+        "Order saved successfully. We received your order and will contact you soon.",
+        "success"
+      );
+
+
+      document
+        .getElementById(
+          "confirmationOrderId"
+        )
+        .textContent =
+        result.orderId ||
+        "ORDER RECEIVED";
+
+
+      document
+        .getElementById(
+          "confirmationMessage"
+        )
+        .textContent =
+        `Thank you, ${
+          data.get(
+            "fullname"
+          ) ||
+          "customer"
+        }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
+
+
+      document
+        .getElementById(
+          "confirmationModal"
+        )
+        .classList.add(
+          "show"
+        );
+
+
+      document
+        .getElementById(
+          "confirmationModal"
+        )
+        .setAttribute(
+          "aria-hidden",
+          "false"
+        );
+
+
+      form.reset();
+
+
+      qtyNumber.value =
+        1;
+
+
+      cart = [];
+
+
+      localStorage.removeItem(
+        "aeCart"
+      );
+
+
+      syncQuantity();
+
+      renderCart();
+
+      renderScentOptions();
+
+
+    } catch (err) {
+
+      console.error(
+        err
+      );
+
+
+      showSubmitStatus(
+        "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
+        "error"
+      );
+
+
+    } finally {
+
+      submitBtn.disabled =
+        false;
+
+      submitBtn.textContent =
+        "Submit Order";
+
+    }
+
+
+    summaryLines.scrollIntoView({
+      behavior:
+        "smooth",
+      block:
+        "nearest"
+    });
+
   }
+);
 
-  summaryLines.scrollIntoView({
-    behavior: "smooth",
-    block: "nearest",
-  });
-});
 
 // ============================================================
 // ORDER CONFIRMATION MODAL
 // ============================================================
 
-const confirmationModal = document.getElementById("confirmationModal");
+const confirmationModal =
+  document.getElementById(
+    "confirmationModal"
+  );
+
 
 document
-  .getElementById("confirmationCloseBtn")
-  .addEventListener("click", () => {
-    confirmationModal.classList.remove("show");
+  .getElementById(
+    "confirmationCloseBtn"
+  )
+  .addEventListener(
+    "click",
+    () => {
 
-    confirmationModal.setAttribute("aria-hidden", "true");
-  });
+      confirmationModal.classList.remove(
+        "show"
+      );
+
+      confirmationModal.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+    }
+  );
+
 
 document
-  .getElementById("confirmationTrackBtn")
-  .addEventListener("click", () => {
-    const id = document
-      .getElementById("confirmationOrderId")
-      .textContent.trim();
+  .getElementById(
+    "confirmationTrackBtn"
+  )
+  .addEventListener(
+    "click",
+    () => {
 
-    document.getElementById("trackingOrderId").value = id;
+      const id =
+        document
+          .getElementById(
+            "confirmationOrderId"
+          )
+          .textContent
+          .trim();
 
-    confirmationModal.classList.remove("show");
 
-    document.getElementById("tracking").scrollIntoView({
-      behavior: "smooth",
-    });
-  });
+      document
+        .getElementById(
+          "trackingOrderId"
+        )
+        .value =
+        id;
 
-confirmationModal.addEventListener("click", (e) => {
-  if (e.target === confirmationModal) {
-    document.getElementById("confirmationCloseBtn").click();
+
+      confirmationModal.classList.remove(
+        "show"
+      );
+
+
+      document
+        .getElementById(
+          "tracking"
+        )
+        .scrollIntoView({
+          behavior:
+            "smooth"
+        });
+
+    }
+  );
+
+
+confirmationModal.addEventListener(
+  "click",
+  e => {
+
+    if (
+      e.target ===
+      confirmationModal
+    ) {
+
+      document
+        .getElementById(
+          "confirmationCloseBtn"
+        )
+        .click();
+
+    }
+
   }
-});
+);
+
 
 // ============================================================
 // ORDER TRACKING
 // ============================================================
 
-const trackingResult = document.getElementById("trackingResult");
-
-const trackingStatus = document.getElementById("trackingStatus");
-
-const trackingResultId = document.getElementById("trackingResultId");
-
-const trackingResultSummary = document.getElementById("trackingResultSummary");
-
-const trackSteps = [
-  "New",
-  "Confirmed",
-  "Preparing",
-  "Out for Delivery",
-  "Completed",
-];
-
-function renderTracking(data) {
-  const status = data.status || "New";
-
-  const current = Math.max(
-    0,
-    trackSteps.findIndex((x) => x.toLowerCase() === status.toLowerCase()),
+const trackingResult =
+  document.getElementById(
+    "trackingResult"
   );
 
-  trackingResultId.textContent = data.orderId || "ORDER";
+const trackingStatus =
+  document.getElementById(
+    "trackingStatus"
+  );
 
-  trackingResultSummary.innerHTML = `
+const trackingResultId =
+  document.getElementById(
+    "trackingResultId"
+  );
+
+const trackingResultSummary =
+  document.getElementById(
+    "trackingResultSummary"
+  );
+
+
+const trackSteps =
+  [
+    "New",
+    "Confirmed",
+    "Preparing",
+    "Out for Delivery",
+    "Completed"
+  ];
+
+
+function renderTracking(
+  data
+) {
+
+  const status =
+    data.status ||
+    "New";
+
+
+  const current =
+    Math.max(
+      0,
+      trackSteps.findIndex(
+        x =>
+          x.toLowerCase() ===
+          status.toLowerCase()
+      )
+    );
+
+
+  trackingResultId.textContent =
+    data.orderId ||
+    "ORDER";
+
+
+  trackingResultSummary.innerHTML =
+    `
       <p
         style="
           color:var(--parchment-dim);
@@ -2516,45 +4165,86 @@ function renderTracking(data) {
           margin:12px 0
         "
       >
-        ${data.scent || "Order"}
+        ${
+          data.scent ||
+          "Order"
+        }
         •
-        ${data.qty || ""}
-        • ₱${Number(data.total || 0).toLocaleString()}
+        ${
+          data.qty ||
+          ""
+        }
+        • ₱${
+          Number(
+            data.total ||
+            0
+          ).toLocaleString()
+        }
 
         <br>
 
         Customer:
-        ${data.fullname || ""}
+        ${
+          data.fullname ||
+          ""
+        }
       </p>
     `;
 
-  trackingStatus.innerHTML = trackSteps
-    .map(
-      (step, i) =>
-        `
+
+  trackingStatus.innerHTML =
+    trackSteps
+      .map(
+        (
+          step,
+          i
+        ) =>
+          `
             <div
               class="track-step ${
-                i < current ? "done" : i === current ? "current" : ""
+                i < current
+                  ? "done"
+                  : i === current
+                    ? "current"
+                    : ""
               }"
             >
-              ${i < current ? "✓ " : i === current ? "● " : "○ "}
+              ${
+                i < current
+                  ? "✓ "
+                  : i === current
+                    ? "● "
+                    : "○ "
+              }
 
               ${step}
 
             </div>
-          `,
-    )
-    .join("");
+          `
+      )
+      .join("");
 
-  trackingResult.classList.add("show");
+
+  trackingResult.classList.add(
+    "show"
+  );
 }
 
-function showTrackingError(msg) {
-  trackingResult.classList.add("show");
 
-  trackingResultId.textContent = "NOT FOUND";
+function showTrackingError(
+  msg
+) {
 
-  trackingResultSummary.innerHTML = `
+  trackingResult.classList.add(
+    "show"
+  );
+
+  trackingResultId.textContent =
+    "NOT FOUND";
+
+
+  trackingResultSummary.innerHTML =
+    `
       <p
         style="
           color:#e8b0b0
@@ -2564,76 +4254,189 @@ function showTrackingError(msg) {
       </p>
     `;
 
-  trackingStatus.innerHTML = "";
+
+  trackingStatus.innerHTML =
+    "";
 }
 
-document.getElementById("trackOrderBtn").addEventListener("click", () => {
-  const orderId = document.getElementById("trackingOrderId").value.trim();
 
-  const contact = document.getElementById("trackingContact").value.trim();
+document
+  .getElementById(
+    "trackOrderBtn"
+  )
+  .addEventListener(
+    "click",
+    () => {
 
-  if (!orderId || !contact) {
-    showTrackingError("Please enter both your Order ID and contact number.");
+      const orderId =
+        document
+          .getElementById(
+            "trackingOrderId"
+          )
+          .value
+          .trim();
 
-    return;
-  }
 
-  const callbackName = "__aeTrack_" + Date.now();
+      const contact =
+        document
+          .getElementById(
+            "trackingContact"
+          )
+          .value
+          .trim();
 
-  window[callbackName] = (data) => {
-    try {
-      if (!data?.success) {
-        throw new Error(data?.message || "Order not found.");
+
+      if (
+        !orderId ||
+        !contact
+      ) {
+
+        showTrackingError(
+          "Please enter both your Order ID and contact number."
+        );
+
+        return;
       }
 
-      renderTracking(data);
-    } catch (e) {
-      showTrackingError(e.message || "Order not found.");
-    } finally {
-      delete window[callbackName];
 
-      script.remove();
+      const callbackName =
+        "__aeTrack_" +
+        Date.now();
+
+
+      window[callbackName] =
+        data => {
+
+          try {
+
+            if (
+              !data?.success
+            ) {
+
+              throw new Error(
+                data?.message ||
+                "Order not found."
+              );
+
+            }
+
+
+            renderTracking(
+              data
+            );
+
+
+          } catch (e) {
+
+            showTrackingError(
+              e.message ||
+              "Order not found."
+            );
+
+
+          } finally {
+
+            delete window[
+              callbackName
+            ];
+
+            script.remove();
+
+          }
+
+        };
+
+
+      const script =
+        document.createElement(
+          "script"
+        );
+
+
+      script.src =
+        GOOGLE_SHEETS_WEB_APP_URL +
+        (
+          GOOGLE_SHEETS_WEB_APP_URL.includes(
+            "?"
+          )
+            ? "&"
+            : "?"
+        ) +
+        "action=trackOrder" +
+        "&orderId=" +
+        encodeURIComponent(
+          orderId
+        ) +
+        "&contact=" +
+        encodeURIComponent(
+          contact
+        ) +
+        "&callback=" +
+        encodeURIComponent(
+          callbackName
+        );
+
+
+      script.onerror =
+        () => {
+
+          showTrackingError(
+            "The tracking service is temporarily unavailable."
+          );
+
+          delete window[
+            callbackName
+          ];
+
+          script.remove();
+
+        };
+
+
+      document.body.appendChild(
+        script
+      );
+
     }
-  };
+  );
 
-  const script = document.createElement("script");
-
-  script.src =
-    GOOGLE_SHEETS_WEB_APP_URL +
-    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
-    "action=trackOrder" +
-    "&orderId=" +
-    encodeURIComponent(orderId) +
-    "&contact=" +
-    encodeURIComponent(contact) +
-    "&callback=" +
-    encodeURIComponent(callbackName);
-
-  script.onerror = () => {
-    showTrackingError("The tracking service is temporarily unavailable.");
-
-    delete window[callbackName];
-
-    script.remove();
-  };
-
-  document.body.appendChild(script);
-});
 
 // ============================================================
 // COPY ORDER SUMMARY
 // ============================================================
 
-copyBtn.addEventListener("click", async function () {
-  try {
-    await navigator.clipboard.writeText(summaryLines.textContent);
+copyBtn.addEventListener(
+  "click",
+  async function() {
 
-    copyBtn.textContent = "Copied!";
+    try {
 
-    setTimeout(() => {
-      copyBtn.textContent = "Copy Order Summary";
-    }, 1800);
-  } catch (err) {
-    copyBtn.textContent = "Select the text above to copy";
+      await navigator.clipboard.writeText(
+        summaryLines.textContent
+      );
+
+
+      copyBtn.textContent =
+        "Copied!";
+
+
+      setTimeout(
+        () => {
+
+          copyBtn.textContent =
+            "Copy Order Summary";
+
+        },
+        1800
+      );
+
+
+    } catch (err) {
+
+      copyBtn.textContent =
+        "Select the text above to copy";
+
+    }
+
   }
-});
+);
