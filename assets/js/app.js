@@ -836,8 +836,7 @@ function getVisibleProducts(cat) {
 
       const matchesCategory =
         cat === "all" ||
-        p.category === cat ||
-        !p.category;
+        p.cat === cat;
 
       return (
         matchesSearch &&
