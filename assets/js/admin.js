@@ -1,11 +1,94 @@
 import { ApiClient } from "./admin-api.js";
 import { PRODUCTS } from "./products.js";
 
-class AdminSession {
-  constructor() {
-    this.data =
-      JSON.parse(sessionStorage.getItem("aeAdminSession") || "null") || {};
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
+const API_URL =
+  "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
+
+const CACHE_PREFIX = "aeAdminCache_";
+
+const ORDER_STATUSES = [
+  "New",
+  "Confirmed",
+  "Preparing",
+  "Out for Delivery",
+  "Completed",
+  "Cancelled"
+];
+
+const DEFAULT_PRODUCT_PRICE = 430;
+const DEFAULT_LOW_STOCK = 5;
+const DEFAULT_PROMO_QTY = 2;
+const DEFAULT_PROMO_FIXED = 840;
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function safeJSONParse(value, fallback = null) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
   }
+}
+
+function debounce(fn, delay = 120) {
+  let timer = null;
+
+  return (...args) => {
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      fn(...args);
+    }, delay);
+  };
+}
+
+function normalize(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function formatCurrency(value) {
+  return "₱" + Number(value || 0).toLocaleString();
+}
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+/* =========================================================
+   ADMIN SESSION
+========================================================= */
+
+class AdminSession {
+
+  constructor() {
+    const saved = safeJSONParse(
+      sessionStorage.getItem("aeAdminSession"),
+      {}
+    );
+
+    this.data =
+      saved &&
+      typeof saved === "object" &&
+      !Array.isArray(saved)
+        ? saved
+        : {};
+  }
+
 
   save(identifier, password, key) {
     this.data = {
@@ -14,23 +97,37 @@ class AdminSession {
       key
     };
 
-    sessionStorage.setItem(
-      "aeAdminSession",
-      JSON.stringify(this.data)
-    );
+    try {
+      sessionStorage.setItem(
+        "aeAdminSession",
+        JSON.stringify(this.data)
+      );
+    } catch {
+      // Ignore storage errors.
+    }
   }
+
 
   clear() {
     this.data = {};
-    sessionStorage.removeItem("aeAdminSession");
+
+    try {
+      sessionStorage.removeItem(
+        "aeAdminSession"
+      );
+    } catch {
+      // Ignore storage errors.
+    }
   }
+
 
   get() {
     return this.data;
   }
 
+
   valid() {
-    return !!(
+    return Boolean(
       this.data.identifier &&
       this.data.password &&
       this.data.key
@@ -39,55 +136,193 @@ class AdminSession {
 }
 
 
+/* =========================================================
+   ADMIN APP
+========================================================= */
+
 class AdminApp {
 
   constructor() {
 
-  this.api = new ApiClient(
-    "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec"
-  );
+    this.api = new ApiClient(API_URL);
 
-  this.session = new AdminSession();
+    this.session = new AdminSession();
 
-  this.products = [];
-  this.orders = [];
-  this.promotions = [];
-  this.settings = {};
+    this.products = [];
+    this.orders = [];
+    this.promotions = [];
+    this.settings = {};
 
-  // ================================
-  // PERFORMANCE / REALTIME STATE
-  // ================================
-  this.cachePrefix = "aeAdminCache_";
+    this.pending = null;
 
-  this.pollers = {
-    orders: null,
-    dashboard: null
-  };
+    /* -----------------------------------------------
+       PERFORMANCE / REALTIME STATE
+    ------------------------------------------------ */
 
-  this.polling = false;
-  this._visibilityHandler = null;
+    this.cachePrefix = CACHE_PREFIX;
 
-  this.views = [
-    "dashboard",
-    "orders",
-    "products",
-    "promotions",
-    "homepage",
-    "audit"
-  ];
+    this.pollers = {
+      orders: null,
+      dashboard: null
+    };
 
-  this.bind();
-}
+    this.polling = false;
+    this._visibilityHandler = null;
+    this._pollingOrders = false;
+    this._pollingDashboard = false;
 
+    /* -----------------------------------------------
+       SEARCH CACHE
+    ------------------------------------------------ */
+
+    this.productSearchIndex = [];
+    this.orderSearchIndex = [];
+
+    /* -----------------------------------------------
+       PRODUCT / PROMOTION LOOKUP
+    ------------------------------------------------ */
+
+    this.productMap = new Map();
+    this.promotionMap = new Map();
+
+    /* -----------------------------------------------
+       VIEWS
+    ------------------------------------------------ */
+
+    this.views = [
+      "dashboard",
+      "orders",
+      "products",
+      "promotions",
+      "homepage",
+      "audit"
+    ];
+
+    /* -----------------------------------------------
+       DOM CACHE
+    ------------------------------------------------ */
+
+    this.dom = {};
+
+    this.cacheDOM();
+
+    this.bind();
+  }
+
+
+  /* =====================================================
+     DOM CACHE
+  ===================================================== */
+
+  cacheDOM() {
+
+    const ids = [
+      "globalStatus",
+      "loginStatus",
+
+      "credentialsForm",
+      "keyForm",
+      "backLogin",
+      "logoutBtn",
+
+      "loginIdentifier",
+      "loginPassword",
+      "loginKey",
+
+      "loginView",
+      "appView",
+
+      "refreshOrders",
+      "exportOrders",
+      "orderSearch",
+      "ordersRows",
+
+      "refreshProducts",
+      "newProduct",
+      "productSearch",
+      "productsRows",
+
+      "productEditor",
+      "closeEditor",
+      "productForm",
+      "deleteProduct",
+
+      "editorTitle",
+      "pOriginalId",
+      "pId",
+      "pName",
+      "pCat",
+      "pPrice",
+      "pStock",
+      "pSort",
+      "pImg",
+      "pDesc",
+      "pDescLong",
+      "pTop",
+      "pHeart",
+      "pBase",
+      "pApplication",
+      "pProfiles",
+      "pLongevity",
+      "pProjection",
+      "pStrength",
+      "pTime",
+      "pOccasion",
+      "pActive",
+
+      "newPromo",
+      "closePromo",
+      "promoEditor",
+      "promoForm",
+
+      "promoId",
+      "promoName",
+      "promoType",
+      "promoQty",
+      "promoFixed",
+      "promoPercent",
+      "promoActive",
+
+      "settingsForm",
+      "setLowStock",
+      "setBest",
+      "setFeatured",
+      "setNew",
+      "setSignature",
+
+      "refreshAudit",
+      "auditRows",
+
+      "statsCards",
+      "topProducts",
+      "lowStockLabel",
+      "lowStock",
+
+      "viewTitle"
+    ];
+
+    ids.forEach(id => {
+      this.dom[id] = document.getElementById(id);
+    });
+  }
+
+
+  /* =====================================================
+     AUTH
+  ===================================================== */
 
   auth() {
     return this.session.get();
   }
 
 
+  /* =====================================================
+     STATUS
+  ===================================================== */
+
   setStatus(message, error = false) {
 
-    const el = document.getElementById("globalStatus");
+    const el = this.dom.globalStatus;
 
     if (!el) return;
 
@@ -101,7 +336,7 @@ class AdminApp {
 
   loginStatus(message, error = false) {
 
-    const el = document.getElementById("loginStatus");
+    const el = this.dom.loginStatus;
 
     if (!el) return;
 
@@ -113,16 +348,22 @@ class AdminApp {
   }
 
 
-  async request(method, params) {
+  /* =====================================================
+     API REQUEST
+  ===================================================== */
+
+  async request(method, params = {}) {
 
     const response =
       method === "GET"
         ? await this.api.get(params)
         : await this.api.post(params);
 
-    if (!response.success) {
+    if (!response?.success) {
+
       throw new Error(
-        response.message || "Request failed."
+        response?.message ||
+        "Request failed."
       );
     }
 
@@ -130,150 +371,287 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     EVENT BINDING
+  ===================================================== */
+
   bind() {
 
-    document
-      .getElementById("credentialsForm")
-      .addEventListener(
-        "submit",
-        e => this.credentials(e)
-      );
+    /* -----------------------------------------------
+       LOGIN
+    ------------------------------------------------ */
+
+    this.dom.credentialsForm?.addEventListener(
+      "submit",
+      e => this.credentials(e)
+    );
 
 
-    document
-      .getElementById("keyForm")
-      .addEventListener(
-        "submit",
-        e => this.verifyKey(e)
-      );
+    this.dom.keyForm?.addEventListener(
+      "submit",
+      e => this.verifyKey(e)
+    );
 
 
-    document
-      .getElementById("backLogin")
-      .onclick = () => {
+    this.dom.backLogin?.addEventListener(
+      "click",
+      () => {
 
-        document
-          .getElementById("keyForm")
-          .classList
-          .add("hidden");
+        this.dom.keyForm?.classList.add("hidden");
 
-        document
-          .getElementById("credentialsForm")
-          .classList
-          .remove("hidden");
-      };
+        this.dom.credentialsForm?.classList.remove(
+          "hidden"
+        );
+      }
+    );
 
 
-    document
-      .getElementById("logoutBtn")
-      .onclick = () => {
+    this.dom.logoutBtn?.addEventListener(
+      "click",
+      () => {
+
+        this.stopRealtime();
 
         this.session.clear();
 
         location.reload();
-      };
+      }
+    );
 
+
+    /* -----------------------------------------------
+       NAVIGATION
+    ------------------------------------------------ */
 
     document
       .querySelectorAll(".nav-item")
       .forEach(button => {
 
-        button.onclick = () =>
-          this.showView(
-            button.dataset.view
-          );
+        button.addEventListener(
+          "click",
+          () => this.showView(button.dataset.view)
+        );
       });
 
 
+    /* -----------------------------------------------
+       ORDERS
+    ------------------------------------------------ */
+
+    this.dom.refreshOrders?.addEventListener(
+      "click",
+      () => this.loadOrders()
+    );
+
+
+    this.dom.exportOrders?.addEventListener(
+      "click",
+      () => this.exportOrders()
+    );
+
+
+    this.debouncedOrderSearch =
+      debounce(
+        () => this.renderOrders(),
+        120
+      );
+
+
+    this.dom.orderSearch?.addEventListener(
+      "input",
+      () => this.debouncedOrderSearch()
+    );
+
+
+    this.dom.ordersRows?.addEventListener(
+      "change",
+      e => {
+
+        const select =
+          e.target.closest("[data-status]");
+
+        if (!select) return;
+
+        this.updateOrder(
+          select.dataset.status,
+          select.value
+        );
+      }
+    );
+
+
+    /* -----------------------------------------------
+       PRODUCTS
+    ------------------------------------------------ */
+
+    this.dom.refreshProducts?.addEventListener(
+      "click",
+      () => this.loadProducts()
+    );
+
+
+    this.dom.newProduct?.addEventListener(
+      "click",
+      () => this.editProduct(null)
+    );
+
+
+    this.debouncedProductSearch =
+      debounce(
+        () => this.renderProducts(),
+        120
+      );
+
+
+    this.dom.productSearch?.addEventListener(
+      "input",
+      () => this.debouncedProductSearch()
+    );
+
+
+    this.dom.closeEditor?.addEventListener(
+      "click",
+      () =>
+        this.dom.productEditor?.classList.add(
+          "hidden"
+        )
+    );
+
+
+    this.dom.productForm?.addEventListener(
+      "submit",
+      e => this.saveProduct(e)
+    );
+
+
+    this.dom.deleteProduct?.addEventListener(
+      "click",
+      () => this.deleteProduct()
+    );
+
+
+    this.dom.productsRows?.addEventListener(
+      "click",
+      e => {
+
+        const editButton =
+          e.target.closest("[data-edit]");
+
+        if (editButton) {
+
+          const product =
+            this.productMap.get(
+              String(editButton.dataset.edit)
+            );
+
+          if (product) {
+            this.editProduct(product);
+          }
+
+          return;
+        }
+
+
+        const deleteButton =
+          e.target.closest("[data-delete]");
+
+        if (deleteButton) {
+
+          this.deleteProduct(
+            deleteButton.dataset.delete
+          );
+        }
+      }
+    );
+
+
+    /* -----------------------------------------------
+       PROMOTIONS
+    ------------------------------------------------ */
+
+    this.dom.newPromo?.addEventListener(
+      "click",
+      () => this.editPromotion(null)
+    );
+
+
+    this.dom.closePromo?.addEventListener(
+      "click",
+      () =>
+        this.dom.promoEditor?.classList.add(
+          "hidden"
+        )
+    );
+
+
+    this.dom.promoForm?.addEventListener(
+      "submit",
+      e => this.savePromotion(e)
+    );
+
+
+    /* Promotion event delegation */
+
     document
-      .getElementById("refreshOrders")
-      .onclick = () =>
-        this.loadOrders();
+      .getElementById("promosList")
+      ?.addEventListener(
+        "click",
+        e => {
+
+          const editButton =
+            e.target.closest("[data-pedit]");
+
+          if (editButton) {
+
+            const promotion =
+              this.promotionMap.get(
+                String(editButton.dataset.pedit)
+              );
+
+            if (promotion) {
+              this.editPromotion(promotion);
+            }
+
+            return;
+          }
 
 
-    document
-      .getElementById("exportOrders")
-      .onclick = () =>
-        this.exportOrders();
+          const deleteButton =
+            e.target.closest("[data-pdel]");
+
+          if (deleteButton) {
+
+            this.deletePromotion(
+              deleteButton.dataset.pdel
+            );
+          }
+        }
+      );
 
 
-    document
-      .getElementById("orderSearch")
-      .oninput = () =>
-        this.renderOrders();
+    /* -----------------------------------------------
+       SETTINGS
+    ------------------------------------------------ */
+
+    this.dom.settingsForm?.addEventListener(
+      "submit",
+      e => this.saveSettings(e)
+    );
 
 
-    document
-      .getElementById("refreshProducts")
-      .onclick = () =>
-        this.loadProducts();
+    /* -----------------------------------------------
+       AUDIT
+    ------------------------------------------------ */
+
+    this.dom.refreshAudit?.addEventListener(
+      "click",
+      () => this.loadAudit()
+    );
 
 
-    document
-      .getElementById("newProduct")
-      .onclick = () =>
-        this.editProduct(null);
-
-
-    document
-      .getElementById("productSearch")
-      .oninput = () =>
-        this.renderProducts();
-
-
-    document
-      .getElementById("closeEditor")
-      .onclick = () =>
-        document
-          .getElementById("productEditor")
-          .classList
-          .add("hidden");
-
-
-    document
-      .getElementById("productForm")
-      .onsubmit = e =>
-        this.saveProduct(e);
-
-
-    document
-      .getElementById("deleteProduct")
-      .onclick = () =>
-        this.deleteProduct();
-
-
-    document
-      .getElementById("newPromo")
-      .onclick = () =>
-        this.editPromotion(null);
-
-
-    document
-      .getElementById("closePromo")
-      .onclick = () =>
-        document
-          .getElementById("promoEditor")
-          .classList
-          .add("hidden");
-
-
-    document
-      .getElementById("promoForm")
-      .onsubmit = e =>
-        this.savePromotion(e);
-
-
-    document
-      .getElementById("settingsForm")
-      .onsubmit = e =>
-        this.saveSettings(e);
-
-
-    document
-      .getElementById("refreshAudit")
-      .onclick = () =>
-        this.loadAudit();
-
+    /* -----------------------------------------------
+       SESSION
+    ------------------------------------------------ */
 
     if (this.session.valid()) {
       this.openApp();
@@ -281,20 +659,19 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     LOGIN
+  ===================================================== */
+
   async credentials(e) {
 
     e.preventDefault();
 
     const identifier =
-      document
-        .getElementById("loginIdentifier")
-        .value
-        .trim();
+      this.dom.loginIdentifier?.value.trim();
 
     const password =
-      document
-        .getElementById("loginPassword")
-        .value;
+      this.dom.loginPassword?.value || "";
 
 
     if (!identifier || !password) {
@@ -317,9 +694,11 @@ class AdminApp {
         });
 
 
-      if (!response.success) {
+      if (!response?.success) {
+
         throw new Error(
-          response.message
+          response?.message ||
+          "Invalid credentials."
         );
       }
 
@@ -330,22 +709,18 @@ class AdminApp {
       };
 
 
-      document
-        .getElementById("credentialsForm")
-        .classList
-        .add("hidden");
+      this.dom.credentialsForm?.classList.add(
+        "hidden"
+      );
 
-
-      document
-        .getElementById("keyForm")
-        .classList
-        .remove("hidden");
+      this.dom.keyForm?.classList.remove(
+        "hidden"
+      );
 
 
       this.loginStatus(
         "Credentials accepted. Enter your admin key."
       );
-
 
     } catch (error) {
 
@@ -357,21 +732,34 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     VERIFY ADMIN KEY
+  ===================================================== */
+
   async verifyKey(e) {
 
     e.preventDefault();
 
 
     const key =
-      document
-        .getElementById("loginKey")
-        .value
-        .trim();
+      this.dom.loginKey?.value.trim();
 
 
     if (!key) {
+
       this.loginStatus(
         "Please enter your admin key.",
+        true
+      );
+
+      return;
+    }
+
+
+    if (!this.pending) {
+
+      this.loginStatus(
+        "Your login session expired. Please try again.",
         true
       );
 
@@ -383,7 +771,9 @@ class AdminApp {
 
       const response =
         await this.api.post({
-          action: "adminVerifyKey",
+
+          action:
+            "adminVerifyKey",
 
           identifier:
             this.pending.identifier,
@@ -392,17 +782,17 @@ class AdminApp {
             this.pending.password,
 
           /*
-           * IMPORTANT:
            * Backend expects adminKey.
            */
           adminKey: key
         });
 
 
-      if (!response.success) {
+      if (!response?.success) {
 
         throw new Error(
-          response.message
+          response?.message ||
+          "Invalid admin key."
         );
       }
 
@@ -416,7 +806,6 @@ class AdminApp {
 
       this.openApp();
 
-
     } catch (error) {
 
       this.loginStatus(
@@ -427,78 +816,329 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     SESSION CACHE
+  ===================================================== */
+
   cacheRead(key) {
-    try { return JSON.parse(sessionStorage.getItem(this.cachePrefix + key) || "null"); }
-    catch (_) { return null; }
+
+    try {
+
+      return safeJSONParse(
+        sessionStorage.getItem(
+          this.cachePrefix + key
+        ),
+        null
+      );
+
+    } catch {
+      return null;
+    }
   }
+
 
   cacheWrite(key, value) {
-    try { sessionStorage.setItem(this.cachePrefix + key, JSON.stringify(value)); }
-    catch (_) {}
+
+    try {
+
+      sessionStorage.setItem(
+        this.cachePrefix + key,
+        JSON.stringify(value)
+      );
+
+    } catch {
+      // Ignore storage quota errors.
+    }
   }
+
+
+  /* =====================================================
+     REALTIME POLLING
+  ===================================================== */
 
   startRealtime() {
-    if (this.polling) return;
+
+    if (this.polling) {
+      return;
+    }
+
+
+    if (!this.session.valid()) {
+      return;
+    }
+
+
     this.polling = true;
-    const poll = () => {
-      if (!this.polling || document.hidden || !this.session.valid()) return;
-      this.loadOrders(true).catch(() => {});
-      this.loadDashboard(true).catch(() => {});
+
+
+    const pollVisible = () => {
+
+      if (
+        !this.polling ||
+        document.hidden ||
+        !this.session.valid()
+      ) {
+        return;
+      }
+
+
+      this.loadOrders(true)
+        .catch(() => {});
+
+
+      this.loadDashboard(true)
+        .catch(() => {});
     };
-    this.pollers.orders = setInterval(() => {
-      if (!document.hidden) this.loadOrders(true).catch(() => {});
-    }, 15000);
-    this.pollers.dashboard = setInterval(() => {
-      if (!document.hidden) this.loadDashboard(true).catch(() => {});
-    }, 30000);
-    document.addEventListener("visibilitychange", this._visibilityHandler = () => {
-      if (!document.hidden && this.session.valid()) poll();
-    });
+
+
+    this.pollers.orders =
+      setInterval(
+        () => {
+
+          if (
+            !document.hidden &&
+            this.session.valid()
+          ) {
+
+            this.loadOrders(true)
+              .catch(() => {});
+          }
+
+        },
+        15000
+      );
+
+
+    this.pollers.dashboard =
+      setInterval(
+        () => {
+
+          if (
+            !document.hidden &&
+            this.session.valid()
+          ) {
+
+            this.loadDashboard(true)
+              .catch(() => {});
+          }
+
+        },
+        30000
+      );
+
+
+    this._visibilityHandler =
+      () => {
+
+        if (
+          !document.hidden &&
+          this.session.valid()
+        ) {
+
+          pollVisible();
+        }
+      };
+
+
+    document.addEventListener(
+      "visibilitychange",
+      this._visibilityHandler
+    );
+
+
+    /*
+     * Initial realtime refresh.
+     */
+    pollVisible();
   }
+
 
   stopRealtime() {
+
     this.polling = false;
-    if (this.pollers.orders) clearInterval(this.pollers.orders);
-    if (this.pollers.dashboard) clearInterval(this.pollers.dashboard);
-    this.pollers.orders = this.pollers.dashboard = null;
-    if (this._visibilityHandler) document.removeEventListener("visibilitychange", this._visibilityHandler);
+
+    if (this.pollers.orders) {
+
+      clearInterval(
+        this.pollers.orders
+      );
+    }
+
+
+    if (this.pollers.dashboard) {
+
+      clearInterval(
+        this.pollers.dashboard
+      );
+    }
+
+
+    this.pollers.orders = null;
+    this.pollers.dashboard = null;
+
+
+    if (this._visibilityHandler) {
+
+      document.removeEventListener(
+        "visibilitychange",
+        this._visibilityHandler
+      );
+
+      this._visibilityHandler = null;
+    }
+
+
+    this._pollingOrders = false;
+    this._pollingDashboard = false;
   }
+
+
+  /* =====================================================
+     CACHE HYDRATION
+  ===================================================== */
 
   hydrateCachedAdmin() {
-    const dashboard=this.cacheRead("dashboard");
-    if (dashboard) this.renderDashboard(dashboard);
-    const products=this.cacheRead("products");
-    if (Array.isArray(products)) { this.products=products; this.renderProducts(); }
-    const promotions=this.cacheRead("promotions");
-    if (Array.isArray(promotions)) { this.promotions=promotions; this.renderPromotions(); }
-    const settings=this.cacheRead("settings");
-    if (settings) { this.settings=settings; this.applySettingsToForm(); }
+
+    const dashboard =
+      this.cacheRead("dashboard");
+
+    if (dashboard) {
+
+      this.renderDashboard(
+        dashboard
+      );
+    }
+
+
+    const products =
+      this.cacheRead("products");
+
+    if (Array.isArray(products)) {
+
+      this.products = products;
+
+      this.rebuildProductIndex();
+
+      this.renderProducts();
+    }
+
+
+    const promotions =
+      this.cacheRead("promotions");
+
+    if (Array.isArray(promotions)) {
+
+      this.promotions = promotions;
+
+      this.rebuildPromotionIndex();
+
+      this.renderPromotions();
+    }
+
+
+    const settings =
+      this.cacheRead("settings");
+
+    if (
+      settings &&
+      typeof settings === "object"
+    ) {
+
+      this.settings = settings;
+
+      this.applySettingsToForm();
+    }
   }
 
+
+  /* =====================================================
+     SETTINGS FORM
+  ===================================================== */
+
   applySettingsToForm() {
-    const lowStock=document.getElementById("setLowStock"); if(lowStock) lowStock.value=this.settings.lowStockThreshold||5;
-    const best=document.getElementById("setBest"); if(best) best.checked=this.settings.showBestSellers!=="false";
-    const featured=document.getElementById("setFeatured"); if(featured) featured.checked=this.settings.showFeatured!=="false";
-    const newArrivals=document.getElementById("setNew"); if(newArrivals) newArrivals.checked=this.settings.showNewArrivals!=="false";
+
+    const lowStock =
+      this.dom.setLowStock;
+
+    if (lowStock) {
+
+      lowStock.value =
+        this.settings.lowStockThreshold ||
+        DEFAULT_LOW_STOCK;
+    }
+
+
+    const best =
+      this.dom.setBest;
+
+    if (best) {
+
+      best.checked =
+        this.settings.showBestSellers !==
+        "false";
+    }
+
+
+    const featured =
+      this.dom.setFeatured;
+
+    if (featured) {
+
+      featured.checked =
+        this.settings.showFeatured !==
+        "false";
+    }
+
+
+    const newArrivals =
+      this.dom.setNew;
+
+    if (newArrivals) {
+
+      newArrivals.checked =
+        this.settings.showNewArrivals !==
+        "false";
+    }
+
+
+    const signature =
+      this.dom.setSignature;
+
+    if (signature) {
+
+      signature.checked =
+        this.settings.showSignature !==
+        "false";
+    }
   }
+
+
+  /* =====================================================
+     OPEN ADMIN APP
+  ===================================================== */
 
   async openApp() {
 
-    document
-      .getElementById("loginView")
-      .classList
-      .add("hidden");
+    this.dom.loginView?.classList.add(
+      "hidden"
+    );
+
+    this.dom.appView?.classList.remove(
+      "hidden"
+    );
 
 
-    document
-      .getElementById("appView")
-      .classList
-      .remove("hidden");
+    /*
+     * Paint cached data first.
+     */
+    this.hydrateCachedAdmin();
 
 
     try {
-      // Cached non-sensitive data paints immediately while fresh data loads.
-      this.hydrateCachedAdmin();
+
+      /*
+       * Fetch everything concurrently.
+       */
       await Promise.all([
         this.loadDashboard(),
         this.loadProducts(),
@@ -506,27 +1146,34 @@ class AdminApp {
         this.loadPromotions(),
         this.loadSettings()
       ]);
-      this.setStatus("Admin connected");
+
+
+      this.setStatus(
+        "Admin connected"
+      );
+
+
       this.startRealtime();
+
     } catch (error) {
-      this.setStatus(error.message, true);
+
+      this.setStatus(
+        error.message,
+        true
+      );
+
+
+      /*
+       * Still allow realtime to start.
+       */
       this.startRealtime();
     }
   }
 
 
-  /*
-   * IMPORTANT FIX
-   *
-   * Apps Script expects:
-   *
-   * identifier
-   * password
-   * adminKey
-   *
-   * We also send "key" for compatibility
-   * with older code.
-   */
+  /* =====================================================
+     AUTH PARAMETERS
+  ===================================================== */
 
   params(extra = {}) {
 
@@ -545,6 +1192,9 @@ class AdminApp {
       adminKey:
         auth.key,
 
+      /*
+       * Compatibility with older backend code.
+       */
       key:
         auth.key,
 
@@ -552,6 +1202,10 @@ class AdminApp {
     };
   }
 
+
+  /* =====================================================
+     VIEW NAVIGATION
+  ===================================================== */
 
   showView(view) {
 
@@ -563,13 +1217,15 @@ class AdminApp {
             currentView + "View"
           );
 
-        if (element) {
-
-          element.classList.toggle(
-            "hidden",
-            currentView !== view
-          );
+        if (!element) {
+          return;
         }
+
+
+        element.classList.toggle(
+          "hidden",
+          currentView !== view
+        );
       }
     );
 
@@ -585,14 +1241,9 @@ class AdminApp {
       });
 
 
-    const title =
-      document.getElementById(
-        "viewTitle"
-      );
+    if (this.dom.viewTitle) {
 
-    if (title) {
-
-      title.textContent =
+      this.dom.viewTitle.textContent =
         view.charAt(0).toUpperCase() +
         view.slice(1);
     }
@@ -605,38 +1256,72 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     DASHBOARD
+  ===================================================== */
+
   async loadDashboard(silent = false) {
 
-    const response =
-      await this.request(
-        "GET",
-        this.params({
-          action: "adminDashboard"
-        })
+    /*
+     * Prevent overlapping realtime dashboard calls.
+     */
+    if (
+      silent &&
+      this._pollingDashboard
+    ) {
+      return;
+    }
+
+
+    this._pollingDashboard = true;
+
+
+    try {
+
+      const response =
+        await this.request(
+          "GET",
+          this.params({
+            action:
+              "adminDashboard"
+          })
+        );
+
+
+      this.cacheWrite(
+        "dashboard",
+        response
       );
 
 
-    this.cacheWrite("dashboard", response);
-    this.renderDashboard(response);
+      this.renderDashboard(
+        response
+      );
+
+    } finally {
+
+      this._pollingDashboard = false;
+    }
   }
 
 
   renderDashboard(response) {
 
     const stats =
-      response.stats || {};
+      response?.stats || {};
 
+
+    /* -----------------------------------------------
+       STAT CARDS
+    ------------------------------------------------ */
 
     const cards =
-      document.getElementById(
-        "statsCards"
-      );
+      this.dom.statsCards;
 
 
     if (cards) {
 
-      cards.innerHTML = [
-
+      const statsHTML = [
         [
           "Orders",
           stats.orders || 0
@@ -644,10 +1329,9 @@ class AdminApp {
 
         [
           "Revenue",
-          "₱" +
-          Number(
+          formatCurrency(
             stats.revenue || 0
-          ).toLocaleString()
+          )
         ],
 
         [
@@ -667,95 +1351,118 @@ class AdminApp {
 
       ]
         .map(
-          item =>
+          ([label, value]) =>
             `
             <div class="stat">
-              <small>${item[0]}</small>
-              <strong>${item[1]}</strong>
+              <small>${escapeHTML(label)}</small>
+              <strong>${escapeHTML(value)}</strong>
             </div>
             `
         )
         .join("");
+
+
+      cards.innerHTML = statsHTML;
     }
 
 
+    /* -----------------------------------------------
+       TOP PRODUCTS
+    ------------------------------------------------ */
+
     const topProducts =
-      document.getElementById(
-        "topProducts"
-      );
+      this.dom.topProducts;
 
 
     if (topProducts) {
 
+      const list =
+        Array.isArray(
+          response?.topProducts
+        )
+          ? response.topProducts
+          : [];
+
+
       topProducts.innerHTML =
+        `
+        <div class="mini-list">
+          ${
+            list
+              .map(
+                (product, index) =>
+                  `
+                  <div class="mini">
+                    <span>
+                      ${index + 1}.
+                      ${escapeHTML(product.name)}
+                    </span>
 
-        '<div class="mini-list">' +
-
-        (response.topProducts || [])
-          .map(
-            (product, index) =>
-              `
-              <div class="mini">
-                <span>
-                  ${index + 1}.
-                  ${product.name}
-                </span>
-
-                <b>
-                  ${product.units}
-                </b>
-              </div>
-              `
-          )
-          .join("") +
-
-        "</div>";
+                    <b>
+                      ${escapeHTML(product.units)}
+                    </b>
+                  </div>
+                  `
+              )
+              .join("")
+          }
+        </div>
+        `;
     }
 
 
-    const lowStockLabel =
-      document.getElementById(
-        "lowStockLabel"
-      );
+    /* -----------------------------------------------
+       LOW STOCK THRESHOLD
+    ------------------------------------------------ */
 
+    if (this.dom.lowStockLabel) {
 
-    if (lowStockLabel) {
-
-      lowStockLabel.textContent =
+      this.dom.lowStockLabel.textContent =
         "Threshold " +
         (
           Number(
-            response.settings?.lowStockThreshold
-          ) || 5
+            response?.settings
+              ?.lowStockThreshold
+          ) || DEFAULT_LOW_STOCK
         );
     }
 
 
+    /* -----------------------------------------------
+       LOW STOCK PRODUCTS
+    ------------------------------------------------ */
+
     const lowStock =
-      document.getElementById(
-        "lowStock"
-      );
+      this.dom.lowStock;
 
 
     if (lowStock) {
 
-      lowStock.innerHTML =
+      const list =
+        Array.isArray(
+          response?.lowStock
+        )
+          ? response.lowStock
+          : [];
 
-        response.lowStock?.length
+
+      lowStock.innerHTML =
+        list.length
 
           ?
 
-          response.lowStock
+          list
             .map(
               product =>
                 `
                 <div class="mini">
                   <span>
-                    ${product.name}
+                    ${escapeHTML(product.name)}
                   </span>
 
                   <b>
-                    ${product.stock} left
+                    ${escapeHTML(product.stock)}
+                    left
                   </b>
                 </div>
                 `
@@ -773,54 +1480,102 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     ORDERS
+  ===================================================== */
+
   async loadOrders(silent = false) {
 
-    const response =
-      await this.request(
-        "GET",
-        this.params({
-          action: "adminOrders"
-        })
-      );
+    if (
+      silent &&
+      this._pollingOrders
+    ) {
+      return;
+    }
 
 
-    this.orders =
-      response.orders || [];
+    this._pollingOrders = true;
 
 
-    this.renderOrders();
+    try {
+
+      const response =
+        await this.request(
+          "GET",
+          this.params({
+            action:
+              "adminOrders"
+          })
+        );
+
+
+      this.orders =
+        Array.isArray(
+          response?.orders
+        )
+          ? response.orders
+          : [];
+
+
+      this.rebuildOrderIndex();
+
+      this.renderOrders();
+
+    } finally {
+
+      this._pollingOrders = false;
+    }
   }
 
 
-  renderOrders() {
+  rebuildOrderIndex() {
 
-    const search =
-      document
-        .getElementById("orderSearch")
-        .value
-        .toLowerCase();
+    this.orderSearchIndex =
+      this.orders.map(order => ({
 
+        order,
 
-    const rows =
-      this.orders.filter(
-        order =>
-
+        search:
           [
             order.orderId,
             order.fullname,
             order.contact,
             order.scent
           ]
+            .map(normalize)
             .join(" ")
-            .toLowerCase()
-            .includes(search)
+
+      }));
+  }
+
+
+  renderOrders() {
+
+    const table =
+      this.dom.ordersRows;
+
+
+    if (!table) {
+      return;
+    }
+
+
+    const search =
+      normalize(
+        this.dom.orderSearch?.value
       );
 
 
-    document.getElementById(
-      "ordersRows"
-    ).innerHTML =
+    const rows =
+      this.orderSearchIndex
+        .filter(item =>
+          !search ||
+          item.search.includes(search)
+        )
+        .map(item => item.order);
 
+
+    table.innerHTML =
       rows
         .map(
           order =>
@@ -829,56 +1584,57 @@ class AdminApp {
 
               <td>
                 <b>
-                  ${order.orderId}
+                  ${escapeHTML(order.orderId)}
                 </b>
 
                 <small>
-                  ${order.payment || ""}
+                  ${escapeHTML(order.payment || "")}
                 </small>
               </td>
 
               <td>
-                ${order.fullname}
+                ${escapeHTML(order.fullname)}
 
                 <small>
-                  ${order.contact}
+                  ${escapeHTML(order.contact)}
                 </small>
               </td>
 
               <td>
                 ${
-                  (order.items || [])
-                    .map(
-                      item =>
-                        `${item.name} × ${item.qty}`
+                  Array.isArray(order.items) &&
+                  order.items.length
+
+                    ?
+
+                    order.items
+                      .map(
+                        item =>
+                          `${escapeHTML(item.name)}
+                           × ${escapeHTML(item.qty)}`
+                      )
+                      .join("<br>")
+
+                    :
+
+                    escapeHTML(
+                      order.scent || ""
                     )
-                    .join("<br>") ||
-                  order.scent ||
-                  ""
                 }
               </td>
 
               <td>
-                ₱${Number(
-                  order.total || 0
-                ).toLocaleString()}
+                ${formatCurrency(order.total)}
               </td>
 
               <td>
 
                 <select
-                  data-status="${order.orderId}"
+                  data-status="${escapeHTML(order.orderId)}"
                 >
 
                   ${
-                    [
-                      "New",
-                      "Confirmed",
-                      "Preparing",
-                      "Out for Delivery",
-                      "Completed",
-                      "Cancelled"
-                    ]
+                    ORDER_STATUSES
                       .map(
                         status =>
                           `
@@ -889,7 +1645,7 @@ class AdminApp {
                                 : ""
                             }
                           >
-                            ${status}
+                            ${escapeHTML(status)}
                           </option>
                           `
                       )
@@ -903,9 +1659,11 @@ class AdminApp {
               <td>
                 ${
                   order.timestamp
-                    ? new Date(
-                        order.timestamp
-                      ).toLocaleString()
+                    ? escapeHTML(
+                        new Date(
+                          order.timestamp
+                        ).toLocaleString()
+                      )
                     : ""
                 }
               </td>
@@ -914,25 +1672,12 @@ class AdminApp {
             `
         )
         .join("");
-
-
-    document
-      .querySelectorAll(
-        "[data-status]"
-      )
-      .forEach(
-        element => {
-
-          element.onchange = () =>
-
-            this.updateOrder(
-              element.dataset.status,
-              element.value
-            );
-        }
-      );
   }
 
+
+  /* =====================================================
+     UPDATE ORDER
+  ===================================================== */
 
   async updateOrder(
     orderId,
@@ -944,6 +1689,7 @@ class AdminApp {
       await this.request(
         "POST",
         this.params({
+
           action:
             "adminUpdateOrderStatus",
 
@@ -954,13 +1700,32 @@ class AdminApp {
       );
 
 
+      /*
+       * Update local state immediately.
+       */
+      const order =
+        this.orders.find(
+          item =>
+            String(item.orderId) ===
+            String(orderId)
+        );
+
+
+      if (order) {
+        order.status = status;
+      }
+
+
+      this.rebuildOrderIndex();
+      this.renderOrders();
+
+
       this.setStatus(
         "Order updated"
       );
 
 
       await this.loadDashboard();
-
 
     } catch (error) {
 
@@ -971,6 +1736,10 @@ class AdminApp {
     }
   }
 
+
+  /* =====================================================
+     EXPORT ORDERS
+  ===================================================== */
 
   exportOrders() {
 
@@ -1041,16 +1810,14 @@ class AdminApp {
           [lines],
           {
             type:
-              "text/csv"
+              "text/csv;charset=utf-8"
           }
         )
       );
 
 
     const link =
-      document.createElement(
-        "a"
-      );
+      document.createElement("a");
 
 
     link.href = url;
@@ -1058,14 +1825,28 @@ class AdminApp {
     link.download =
       "aura-essence-orders.csv";
 
+
+    document.body.appendChild(link);
+
     link.click();
 
+    link.remove();
 
-    URL.revokeObjectURL(
-      url
+
+    /*
+     * Delay revoke slightly so browsers
+     * have time to start the download.
+     */
+    setTimeout(
+      () => URL.revokeObjectURL(url),
+      100
     );
   }
 
+
+  /* =====================================================
+     PRODUCTS
+  ===================================================== */
 
   async loadProducts() {
 
@@ -1073,14 +1854,27 @@ class AdminApp {
       await this.request(
         "GET",
         this.params({
-          action: "adminProducts"
+          action:
+            "adminProducts"
         })
       );
 
 
     this.products =
-      response.products || [];
-    this.cacheWrite("products", this.products);
+      Array.isArray(
+        response?.products
+      )
+        ? response.products
+        : [];
+
+
+    this.rebuildProductIndex();
+
+
+    this.cacheWrite(
+      "products",
+      this.products
+    );
 
 
     /*
@@ -1104,6 +1898,47 @@ class AdminApp {
   }
 
 
+  rebuildProductIndex() {
+
+    this.productMap.clear();
+
+    this.productSearchIndex = [];
+
+
+    this.products.forEach(
+      product => {
+
+        const id =
+          String(product.id);
+
+
+        this.productMap.set(
+          id,
+          product
+        );
+
+
+        this.productSearchIndex.push({
+
+          product,
+
+          search:
+            [
+              product.name,
+              product.id
+            ]
+              .map(normalize)
+              .join(" ")
+        });
+      }
+    );
+  }
+
+
+  /* =====================================================
+     SYNC CATALOG
+  ===================================================== */
+
   async syncCatalog() {
 
     const products =
@@ -1126,7 +1961,8 @@ class AdminApp {
             product.img || "",
 
           price:
-            product.price || 430,
+            product.price ||
+            DEFAULT_PRODUCT_PRICE,
 
           stock:
             product.stock == null
@@ -1195,13 +2031,27 @@ class AdminApp {
       await this.request(
         "GET",
         this.params({
-          action: "adminProducts"
+          action:
+            "adminProducts"
         })
       );
 
 
     this.products =
-      response.products || [];
+      Array.isArray(
+        response?.products
+      )
+        ? response.products
+        : [];
+
+
+    this.rebuildProductIndex();
+
+
+    this.cacheWrite(
+      "products",
+      this.products
+    );
 
 
     this.renderProducts();
@@ -1213,42 +2063,46 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     RENDER PRODUCTS
+  ===================================================== */
+
   renderProducts() {
 
+    const table =
+      this.dom.productsRows;
+
+
+    if (!table) {
+      return;
+    }
+
+
     const search =
-      document
-        .getElementById(
-          "productSearch"
-        )
-        .value
-        .toLowerCase();
+      normalize(
+        this.dom.productSearch?.value
+      );
 
 
     const products =
-      this.products
+      this.productSearchIndex
 
-        .filter(
-          product =>
-            (
-              product.name +
-              " " +
-              product.id
-            )
-              .toLowerCase()
-              .includes(search)
+        .filter(item =>
+          !search ||
+          item.search.includes(search)
         )
 
+        .map(item => item.product)
+
+        .slice()
         .sort(
           (a, b) =>
-            (a.sortOrder || 0) -
-            (b.sortOrder || 0)
+            Number(a.sortOrder || 0) -
+            Number(b.sortOrder || 0)
         );
 
 
-    document.getElementById(
-      "productsRows"
-    ).innerHTML =
-
+    table.innerHTML =
       products
         .map(
           product =>
@@ -1257,41 +2111,47 @@ class AdminApp {
 
               <td>
                 <b>
-                  ${product.name}
+                  ${escapeHTML(product.name)}
                 </b>
 
                 <small>
-                  ${product.id}
+                  ${escapeHTML(product.id)}
                 </small>
               </td>
 
               <td>
-                ₱${Number(
-                  product.price || 0
-                ).toLocaleString()}
+                ${formatCurrency(product.price)}
               </td>
 
               <td>
                 ${
                   product.stock == null
                     ? "—"
-                    : product.stock
+                    : escapeHTML(product.stock)
                 }
               </td>
 
               <td>
                 ${
-                  (product.badges || [])
-                    .map(
-                      badge =>
-                        `
-                        <span class="badge">
-                          ${badge}
-                        </span>
-                        `
-                    )
-                    .join("") ||
-                  "—"
+                  Array.isArray(product.badges) &&
+                  product.badges.length
+
+                    ?
+
+                    product.badges
+                      .map(
+                        badge =>
+                          `
+                          <span class="badge">
+                            ${escapeHTML(badge)}
+                          </span>
+                          `
+                      )
+                      .join("")
+
+                    :
+
+                    "—"
                 }
               </td>
 
@@ -1313,14 +2173,14 @@ class AdminApp {
 
                 <button
                   class="btn"
-                  data-edit="${product.id}"
+                  data-edit="${escapeHTML(product.id)}"
                 >
                   Edit
                 </button>
 
                 <button
                   class="btn danger"
-                  data-delete="${product.id}"
+                  data-delete="${escapeHTML(product.id)}"
                 >
                   Delete
                 </button>
@@ -1331,62 +2191,27 @@ class AdminApp {
             `
         )
         .join("");
-
-
-    document
-      .querySelectorAll(
-        "[data-edit]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick = () => {
-
-            this.editProduct(
-              this.products.find(
-                product =>
-                  product.id ===
-                  button.dataset.edit
-              )
-            );
-          };
-        }
-      );
-
-
-    document
-      .querySelectorAll(
-        "[data-delete]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick = () =>
-
-            this.deleteProduct(
-              button.dataset.delete
-            );
-        }
-      );
   }
 
 
+  /* =====================================================
+     EDIT PRODUCT
+  ===================================================== */
+
   editProduct(product) {
 
-    document
-      .getElementById(
-        "productEditor"
-      )
-      .classList
-      .remove("hidden");
+    this.dom.productEditor?.classList.remove(
+      "hidden"
+    );
 
 
-    document.getElementById(
-      "editorTitle"
-    ).textContent =
-      product
-        ? "Edit Product"
-        : "Add Product";
+    if (this.dom.editorTitle) {
+
+      this.dom.editorTitle.textContent =
+        product
+          ? "Edit Product"
+          : "Add Product";
+    }
 
 
     const set =
@@ -1425,7 +2250,8 @@ class AdminApp {
 
     set(
       "pPrice",
-      product?.price || 430
+      product?.price ||
+      DEFAULT_PRODUCT_PRICE
     );
 
     set(
@@ -1492,18 +2318,37 @@ class AdminApp {
       product?.projection || 7
     );
 
+
     const normalizedStrength = {
-      light: "subtle",
-      subtle: "subtle",
-      moderate: "moderate",
-      strong: "bold",
-      bold: "bold"
-    }[String(product?.strength || "moderate").toLowerCase()] || "moderate";
+
+      light:
+        "subtle",
+
+      subtle:
+        "subtle",
+
+      moderate:
+        "moderate",
+
+      strong:
+        "bold",
+
+      bold:
+        "bold"
+
+    }[
+      normalize(
+        product?.strength ||
+        "moderate"
+      )
+    ] || "moderate";
+
 
     set(
       "pStrength",
       normalizedStrength
     );
+
 
     set(
       "pTime",
@@ -1531,12 +2376,13 @@ class AdminApp {
 
 
     document
-      .querySelectorAll(
-        ".badge"
-      )
+      .querySelectorAll(".badge")
       .forEach(
         badge => {
 
+          /*
+           * Preserve the existing behavior.
+           */
           badge.checked =
             (
               product?.badges || []
@@ -1548,6 +2394,10 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     SAVE PRODUCT
+  ===================================================== */
+
   async saveProduct(e) {
 
     e.preventDefault();
@@ -1557,9 +2407,7 @@ class AdminApp {
       id => {
 
         const element =
-          document.getElementById(
-            id
-          );
+          document.getElementById(id);
 
         return element
           ? element.value.trim()
@@ -1631,9 +2479,8 @@ class AdminApp {
           value("pOccasion"),
 
         active:
-          document.getElementById(
-            "pActive"
-          )?.checked || false,
+          this.dom.pActive?.checked ||
+          false,
 
         badges:
           [
@@ -1662,18 +2509,18 @@ class AdminApp {
       );
 
 
-      document
-        .getElementById(
-          "productEditor"
-        )
-        .classList
-        .add("hidden");
+      this.dom.productEditor?.classList.add(
+        "hidden"
+      );
 
 
-      await this.loadProducts();
-
-      await this.loadDashboard();
-
+      /*
+       * Refresh both products and dashboard.
+       */
+      await Promise.all([
+        this.loadProducts(),
+        this.loadDashboard()
+      ]);
 
     } catch (error) {
 
@@ -1685,14 +2532,18 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     DELETE PRODUCT
+  ===================================================== */
+
   async deleteProduct(
     id =
-      document.getElementById(
-        "pOriginalId"
-      )?.value
+      this.dom.pOriginalId?.value
   ) {
 
-    if (!id) return;
+    if (!id) {
+      return;
+    }
 
 
     if (
@@ -1723,18 +2574,15 @@ class AdminApp {
       );
 
 
-      document
-        .getElementById(
-          "productEditor"
-        )
-        .classList
-        .add("hidden");
+      this.dom.productEditor?.classList.add(
+        "hidden"
+      );
 
 
-      await this.loadProducts();
-
-      await this.loadDashboard();
-
+      await Promise.all([
+        this.loadProducts(),
+        this.loadDashboard()
+      ]);
 
     } catch (error) {
 
@@ -1745,6 +2593,10 @@ class AdminApp {
     }
   }
 
+
+  /* =====================================================
+     PROMOTIONS
+  ===================================================== */
 
   async loadPromotions() {
 
@@ -1759,11 +2611,40 @@ class AdminApp {
 
 
     this.promotions =
-      response.promotions || [];
-    this.cacheWrite("promotions", this.promotions);
+      Array.isArray(
+        response?.promotions
+      )
+        ? response.promotions
+        : [];
+
+
+    this.rebuildPromotionIndex();
+
+
+    this.cacheWrite(
+      "promotions",
+      this.promotions
+    );
 
 
     this.renderPromotions();
+  }
+
+
+  rebuildPromotionIndex() {
+
+    this.promotionMap.clear();
+
+
+    this.promotions.forEach(
+      promotion => {
+
+        this.promotionMap.set(
+          String(promotion.id),
+          promotion
+        );
+      }
+    );
   }
 
 
@@ -1775,11 +2656,12 @@ class AdminApp {
       );
 
 
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
 
     container.innerHTML =
-
       this.promotions
         .map(
           promotion =>
@@ -1789,21 +2671,28 @@ class AdminApp {
               <div>
 
                 <b>
-                  ${promotion.name}
+                  ${escapeHTML(promotion.name)}
                 </b>
 
                 <small>
-                  ${promotion.type}
-                  • min ${promotion.minQty}
+                  ${escapeHTML(promotion.type)}
+                  • min ${escapeHTML(promotion.minQty)}
                   • ${
                     promotion.type ===
                     "fixed_total"
 
-                      ? "₱" +
-                        promotion.fixedTotal
+                      ?
 
-                      : promotion.percentOff +
-                        "% off"
+                      formatCurrency(
+                        promotion.fixedTotal
+                      )
+
+                      :
+
+                      escapeHTML(
+                        promotion.percentOff
+                      ) +
+                      "% off"
                   }
                 </small>
 
@@ -1821,14 +2710,14 @@ class AdminApp {
 
                 <button
                   class="btn"
-                  data-pedit="${promotion.id}"
+                  data-pedit="${escapeHTML(promotion.id)}"
                 >
                   Edit
                 </button>
 
                 <button
                   class="btn danger"
-                  data-pdel="${promotion.id}"
+                  data-pdel="${escapeHTML(promotion.id)}"
                 >
                   Delete
                 </button>
@@ -1839,64 +2728,27 @@ class AdminApp {
             `
         )
         .join("");
-
-
-    document
-      .querySelectorAll(
-        "[data-pedit]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick = () =>
-
-            this.editPromotion(
-              this.promotions.find(
-                promotion =>
-                  promotion.id ===
-                  button.dataset.pedit
-              )
-            );
-        }
-      );
-
-
-    document
-      .querySelectorAll(
-        "[data-pdel]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick = () =>
-
-            this.deletePromotion(
-              button.dataset.pdel
-            );
-        }
-      );
   }
 
+
+  /* =====================================================
+     EDIT PROMOTION
+  ===================================================== */
 
   editPromotion(
     promotion
   ) {
 
-    document
-      .getElementById(
-        "promoEditor"
-      )
-      .classList
-      .remove("hidden");
+    this.dom.promoEditor?.classList.remove(
+      "hidden"
+    );
 
 
     const set =
       (id, value) => {
 
         const element =
-          document.getElementById(
-            id
-          );
+          document.getElementById(id);
 
         if (element) {
 
@@ -1919,22 +2771,25 @@ class AdminApp {
     set(
       "promoType",
       promotion?.type ||
-        "fixed_total"
+      "fixed_total"
     );
 
     set(
       "promoQty",
-      promotion?.minQty || 2
+      promotion?.minQty ||
+      DEFAULT_PROMO_QTY
     );
 
     set(
       "promoFixed",
-      promotion?.fixedTotal || 840
+      promotion?.fixedTotal ||
+      DEFAULT_PROMO_FIXED
     );
 
     set(
       "promoPercent",
-      promotion?.percentOff || 0
+      promotion?.percentOff ||
+      0
     );
 
 
@@ -1952,6 +2807,10 @@ class AdminApp {
   }
 
 
+  /* =====================================================
+     SAVE PROMOTION
+  ===================================================== */
+
   async savePromotion(e) {
 
     e.preventDefault();
@@ -1961,9 +2820,7 @@ class AdminApp {
       id => {
 
         const element =
-          document.getElementById(
-            id
-          );
+          document.getElementById(id);
 
         return element
           ? element.value.trim()
@@ -2001,17 +2858,15 @@ class AdminApp {
           active:
             document.getElementById(
               "promoActive"
-            )?.checked || false
+            )?.checked ||
+            false
         })
       );
 
 
-      document
-        .getElementById(
-          "promoEditor"
-        )
-        .classList
-        .add("hidden");
+      this.dom.promoEditor?.classList.add(
+        "hidden"
+      );
 
 
       await this.loadPromotions();
@@ -2020,7 +2875,6 @@ class AdminApp {
       this.setStatus(
         "Promotion saved"
       );
-
 
     } catch (error) {
 
@@ -2031,6 +2885,10 @@ class AdminApp {
     }
   }
 
+
+  /* =====================================================
+     DELETE PROMOTION
+  ===================================================== */
 
   async deletePromotion(id) {
 
@@ -2064,7 +2922,6 @@ class AdminApp {
         "Promotion deleted"
       );
 
-
     } catch (error) {
 
       this.setStatus(
@@ -2074,6 +2931,10 @@ class AdminApp {
     }
   }
 
+
+  /* =====================================================
+     SETTINGS
+  ===================================================== */
 
   async loadSettings() {
 
@@ -2088,82 +2949,16 @@ class AdminApp {
 
 
     this.settings =
-      response.settings || {};
-    this.cacheWrite("settings", this.settings);
+      response?.settings || {};
 
 
-    const lowStock =
-      document.getElementById(
-        "setLowStock"
-      );
+    this.cacheWrite(
+      "settings",
+      this.settings
+    );
 
 
-    if (lowStock) {
-
-      lowStock.value =
-        this.settings
-          .lowStockThreshold || 5;
-    }
-
-
-    const best =
-      document.getElementById(
-        "setBest"
-      );
-
-
-    if (best) {
-
-      best.checked =
-        this.settings
-          .showBestSellers !==
-        "false";
-    }
-
-
-    const featured =
-      document.getElementById(
-        "setFeatured"
-      );
-
-
-    if (featured) {
-
-      featured.checked =
-        this.settings
-          .showFeatured !==
-        "false";
-    }
-
-
-    const newArrivals =
-      document.getElementById(
-        "setNew"
-      );
-
-
-    if (newArrivals) {
-
-      newArrivals.checked =
-        this.settings
-          .showNewArrivals !==
-        "false";
-    }
-
-
-    const signature =
-      document.getElementById(
-        "setSignature"
-      );
-
-
-    if (signature) {
-
-      signature.checked =
-        this.settings
-          .showSignature !==
-        "false";
-    }
+    this.applySettingsToForm();
   }
 
 
@@ -2175,29 +2970,24 @@ class AdminApp {
     const settings = {
 
       lowStockThreshold:
-        document.getElementById(
-          "setLowStock"
-        )?.value || 5,
+        this.dom.setLowStock?.value ||
+        DEFAULT_LOW_STOCK,
 
       showBestSellers:
-        document.getElementById(
-          "setBest"
-        )?.checked || false,
+        this.dom.setBest?.checked ||
+        false,
 
       showFeatured:
-        document.getElementById(
-          "setFeatured"
-        )?.checked || false,
+        this.dom.setFeatured?.checked ||
+        false,
 
       showNewArrivals:
-        document.getElementById(
-          "setNew"
-        )?.checked || false,
+        this.dom.setNew?.checked ||
+        false,
 
       showSignature:
-        document.getElementById(
-          "setSignature"
-        )?.checked || false
+        this.dom.setSignature?.checked ||
+        false
     };
 
 
@@ -2211,10 +3001,23 @@ class AdminApp {
             "adminSaveSettings",
 
           settings:
-            JSON.stringify(
-              settings
-            )
+            JSON.stringify(settings)
         })
+      );
+
+
+      /*
+       * Update local state immediately.
+       */
+      this.settings = {
+        ...this.settings,
+        ...settings
+      };
+
+
+      this.cacheWrite(
+        "settings",
+        this.settings
       );
 
 
@@ -2225,7 +3028,6 @@ class AdminApp {
 
       await this.loadDashboard();
 
-
     } catch (error) {
 
       this.setStatus(
@@ -2235,6 +3037,10 @@ class AdminApp {
     }
   }
 
+
+  /* =====================================================
+     AUDIT
+  ===================================================== */
 
   async loadAudit() {
 
@@ -2251,17 +3057,24 @@ class AdminApp {
 
 
       const table =
-        document.getElementById(
-          "auditRows"
-        );
+        this.dom.auditRows;
 
 
-      if (!table) return;
+      if (!table) {
+        return;
+      }
+
+
+      const logs =
+        Array.isArray(
+          response?.logs
+        )
+          ? response.logs
+          : [];
 
 
       table.innerHTML =
-
-        (response.logs || [])
+        logs
           .map(
             log =>
               `
@@ -2270,26 +3083,27 @@ class AdminApp {
                 <td>
                   ${
                     log.timestamp
-                      ? new Date(
-                          log.timestamp
-                        ).toLocaleString()
+                      ? escapeHTML(
+                          new Date(
+                            log.timestamp
+                          ).toLocaleString()
+                        )
                       : ""
                   }
                 </td>
 
                 <td>
-                  ${log.actor || ""}
+                  ${escapeHTML(log.actor || "")}
                 </td>
 
                 <td>
-                  ${log.action || ""}
+                  ${escapeHTML(log.action || "")}
                 </td>
 
               </tr>
               `
           )
           .join("");
-
 
     } catch (error) {
 
@@ -2301,5 +3115,9 @@ class AdminApp {
   }
 }
 
+
+/* =========================================================
+   START ADMIN APP
+========================================================= */
 
 new AdminApp();
