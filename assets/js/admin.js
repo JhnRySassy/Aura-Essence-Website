@@ -43,33 +43,41 @@ class AdminApp {
 
   constructor() {
 
-    /*
-     * IMPORTANT:
-     * Replace this with your actual Google Apps Script
-     * Web App URL ending in /exec
-     */
-    this.api = new ApiClient(
-      "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec"
-    );
+  this.api = new ApiClient(
+    "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec"
+  );
 
-    this.session = new AdminSession();
+  this.session = new AdminSession();
 
-    this.products = [];
-    this.orders = [];
-    this.promotions = [];
-    this.settings = {};
+  this.products = [];
+  this.orders = [];
+  this.promotions = [];
+  this.settings = {};
 
-    this.views = [
-      "dashboard",
-      "orders",
-      "products",
-      "promotions",
-      "homepage",
-      "audit"
-    ];
+  // ================================
+  // PERFORMANCE / REALTIME STATE
+  // ================================
+  this.cachePrefix = "aeAdminCache_";
 
-    this.bind();
-  }
+  this.pollers = {
+    orders: null,
+    dashboard: null
+  };
+
+  this.polling = false;
+  this._visibilityHandler = null;
+
+  this.views = [
+    "dashboard",
+    "orders",
+    "products",
+    "promotions",
+    "homepage",
+    "audit"
+  ];
+
+  this.bind();
+}
 
 
   auth() {
