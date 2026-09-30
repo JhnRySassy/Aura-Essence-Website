@@ -1,9 +1,13 @@
-import { Product, PRODUCTS, PRODUCT_PRICE, PRODUCT_META } from "./products.js";
+import {
+  Product,
+  PRODUCTS,
+  PRODUCT_PRICE,
+  PRODUCT_META,
+} from "./products.js";
 
 // ============================================================
 // AURA & ESSENCE FRONTEND
-// Object-oriented services are defined below so catalog, cart,
-// wishlist, API communication, and admin management stay separated.
+// SAFE PERFORMANCE OPTIMIZED VERSION
 // ============================================================
 
 const reviewStats = {};
@@ -23,6 +27,13 @@ class ProductCatalog {
     );
 
     this.meta = meta;
+
+    // Fast product lookup while keeping original array structure.
+    this.index = new Map();
+
+    this.products.forEach((product) => {
+      this.index.set(String(product.id), product);
+    });
   }
 
   all() {
@@ -30,58 +41,108 @@ class ProductCatalog {
   }
 
   find(id) {
-    return this.products.find((product) => product.id === id);
+    return this.index.get(String(id));
   }
 
   upsert(data) {
-    const index = this.products.findIndex((product) => product.id === data.id);
+    const id = String(data.id);
+
+    const existing = this.index.get(id);
+
+    if (existing) {
+      Object.assign(existing, data);
+
+      this.invalidateCache(id);
+
+      return existing;
+    }
 
     const product = new Product(data);
 
-    if (index === -1) {
-      this.products.push(product);
-    } else {
-      this.products[index] = product;
-    }
+    this.products.push(product);
+
+    this.index.set(id, product);
+
+    this.invalidateCache(id);
 
     return product;
   }
 
   remove(id) {
-    this.products = this.products.filter((product) => product.id !== id);
+    const key = String(id);
+
+    this.products = this.products.filter(
+      (product) => String(product.id) !== key,
+    );
+
+    this.index.delete(key);
+
+    this.invalidateCache(key);
+  }
+
+  invalidateCache(id) {
+    if (typeof productSearchCache !== "undefined") {
+      productSearchCache.delete(String(id));
+    }
   }
 }
+
+// ============================================================
+// CART MANAGER
+// ============================================================
 
 class CartManager {
   constructor(storageKey = "aeCart") {
     this.storageKey = storageKey;
 
-    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(storageKey) || "[]",
+      );
+
+      this.items = Array.isArray(saved) ? saved : [];
+    } catch {
+      this.items = [];
+    }
   }
 
   save() {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+    localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(this.items),
+    );
   }
 
   find(id) {
-    return this.items.find((item) => item.id === id);
+    return this.items.find(
+      (item) => String(item.id) === String(id),
+    );
   }
 
   clear() {
     this.items = [];
+
     this.save();
   }
 
   add(product, qty = 1) {
-    if (!product || product.active === false || product.stock === 0) {
+    if (
+      !product ||
+      product.active === false ||
+      product.stock === 0
+    ) {
       return false;
     }
 
     const existing = this.find(product.id);
 
-    const nextQty = (existing?.qty || 0) + qty;
+    const nextQty =
+      (existing?.qty || 0) + qty;
 
-    if (product.stock != null && nextQty > Number(product.stock)) {
+    if (
+      product.stock != null &&
+      nextQty > Number(product.stock)
+    ) {
       return false;
     }
 
@@ -106,39 +167,72 @@ class CartManager {
       return;
     }
 
-    item.qty = Math.max(0, item.qty + delta);
+    item.qty = Math.max(
+      0,
+      Number(item.qty || 0) + delta,
+    );
 
     if (product.stock != null) {
-      item.qty = Math.min(item.qty, Number(product.stock));
+      item.qty = Math.min(
+        item.qty,
+        Number(product.stock),
+      );
     }
 
     if (item.qty === 0) {
       this.remove(product.id);
+
+      return;
     }
 
     this.save();
   }
 
   remove(id) {
-    this.items = this.items.filter((item) => item.id !== id);
+    this.items = this.items.filter(
+      (item) =>
+        String(item.id) !== String(id),
+    );
 
     this.save();
   }
 
   total(catalog) {
-    return this.items.reduce((sum, item) => {
+    let total = 0;
+
+    for (const item of this.items) {
       const product = catalog.find(item.id);
 
-      return sum + (product ? product.priceValue * item.qty : 0);
-    }, 0);
+      if (product) {
+        total +=
+          Number(product.priceValue || product.price || 0) *
+          Number(item.qty || 0);
+      }
+    }
+
+    return total;
   }
 }
+
+// ============================================================
+// WISHLIST MANAGER
+// ============================================================
 
 class WishlistManager {
   constructor(storageKey = "aeFavorites") {
     this.storageKey = storageKey;
 
-    this.items = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(storageKey) || "[]",
+      );
+
+      this.items = Array.isArray(saved)
+        ? saved
+        : [];
+    } catch {
+      this.items = [];
+    }
   }
 
   has(id) {
@@ -147,14 +241,23 @@ class WishlistManager {
 
   toggle(id) {
     this.items = this.has(id)
-      ? this.items.filter((item) => item !== id)
+      ? this.items.filter(
+          (item) => item !== id,
+        )
       : [...this.items, id];
 
-    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+    localStorage.setItem(
+      this.storageKey,
+      JSON.stringify(this.items),
+    );
 
     return this.items;
   }
 }
+
+// ============================================================
+// API CLIENT
+// ============================================================
 
 class ApiClient {
   constructor(baseUrl) {
@@ -162,31 +265,124 @@ class ApiClient {
   }
 
   async get(params = {}) {
-    const url = new URL(this.baseUrl);
+    const maxAttempts = 3;
 
-    Object.entries(params).forEach(([key, value]) =>
-      url.searchParams.set(key, value),
-    );
+    for (
+      let attempt = 1;
+      attempt <= maxAttempts;
+      attempt++
+    ) {
+      const controller =
+        new AbortController();
 
-    const response = await fetch(url, {
-      cache: "no-store",
-    });
+      const timeout = setTimeout(
+        () => controller.abort(),
+        10000,
+      );
 
-    return response.json();
+      try {
+        const url = new URL(
+          this.baseUrl,
+        );
+
+        Object.entries(params).forEach(
+          ([key, value]) => {
+            url.searchParams.set(
+              key,
+              value,
+            );
+          },
+        );
+
+        // Prevent stale Apps Script responses.
+        url.searchParams.set(
+          "_ts",
+          Date.now().toString(),
+        );
+
+        const response = await fetch(
+          url,
+          {
+            cache: "no-store",
+            redirect: "follow",
+            signal: controller.signal,
+          },
+        );
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(
+            `HTTP ${response.status}`,
+          );
+        }
+
+        return await response.json();
+      } catch (error) {
+        clearTimeout(timeout);
+
+        if (
+          attempt ===
+          maxAttempts
+        ) {
+          throw error;
+        }
+
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            attempt * 400,
+          ),
+        );
+      }
+    }
   }
 
   async post(params = {}) {
-    const response = await fetch(this.baseUrl, {
-      method: "POST",
+    const controller =
+      new AbortController();
 
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
+    const timeout = setTimeout(
+      () => controller.abort(),
+      15000,
+    );
 
-      body: new URLSearchParams(params).toString(),
-    });
+    try {
+      const response = await fetch(
+        this.baseUrl,
+        {
+          method: "POST",
 
-    return response.json();
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded;charset=UTF-8",
+          },
+
+          redirect: "follow",
+
+          signal:
+            controller.signal,
+
+          body: new URLSearchParams(
+            params,
+          ).toString(),
+        },
+      );
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP ${response.status}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeout);
+
+      throw error;
+    }
   }
 }
 
@@ -194,17 +390,98 @@ class ApiClient {
 // GLOBAL SERVICES
 // ============================================================
 
-const catalog = new ProductCatalog(PRODUCTS, PRODUCT_META);
+const catalog = new ProductCatalog(
+  PRODUCTS,
+  PRODUCT_META,
+);
 
-const cartManager = new CartManager();
+const cartManager =
+  new CartManager();
 
-const wishlistManager = new WishlistManager();
+const wishlistManager =
+  new WishlistManager();
 
 let apiClient;
 
-let favorites = wishlistManager.items;
+let favorites =
+  wishlistManager.items;
 
-let cart = cartManager.items;
+let cart =
+  cartManager.items;
+
+// ============================================================
+// PRODUCT SEARCH CACHE
+//
+// Stores normalized search/profile information.
+// This avoids rebuilding strings every time
+// the user types in the search box.
+// ============================================================
+
+const productSearchCache =
+  new Map();
+
+function getProductSearchData(product) {
+  const id = String(product.id);
+
+  const cached =
+    productSearchCache.get(id);
+
+  if (cached) {
+    return cached;
+  }
+
+  const meta =
+    PRODUCT_META[product.id] || {};
+
+  let profiles = [];
+
+  if (Array.isArray(meta.profiles)) {
+    profiles =
+      meta.profiles
+        .map((profile) =>
+          String(profile)
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(Boolean);
+  } else if (
+    typeof meta.profiles ===
+    "string"
+  ) {
+    profiles =
+      meta.profiles
+        .split(",")
+        .map((profile) =>
+          String(profile)
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(Boolean);
+  }
+
+  const searchable = [
+    product.name,
+    product.desc,
+    ...(product.topNotes || []),
+    ...(product.heartNotes || []),
+    ...(product.baseNotes || []),
+    ...profiles,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const result = {
+    profiles,
+    searchable,
+  };
+
+  productSearchCache.set(
+    id,
+    result,
+  );
+
+  return result;
+}
 
 // ============================================================
 // BASIC HELPERS
@@ -215,7 +492,9 @@ function getProductById(id) {
 }
 
 function getCartTotal() {
-  return cartManager.total(catalog);
+  return cartManager.total(
+    catalog,
+  );
 }
 
 function saveCart() {
@@ -227,41 +506,63 @@ function saveCart() {
 }
 
 function addToCart(id, qty = 1) {
-  const product = getProductById(id);
+  const product =
+    getProductById(id);
 
   if (!product) {
     return;
   }
 
-  const existing = cartManager.find(id);
+  const existing =
+    cartManager.find(id);
 
-  const next = (existing?.qty || 0) + qty;
+  const next =
+    (existing?.qty || 0) + qty;
 
-  if (product.stock != null && next > Number(product.stock)) {
-    alert(`Only ${product.stock} bottle(s) of ${product.name} available.`);
+  if (
+    product.stock != null &&
+    next > Number(product.stock)
+  ) {
+    alert(
+      `Only ${product.stock} bottle(s) of ${product.name} available.`,
+    );
 
     return;
   }
 
-  if (!cartManager.add(product, qty)) {
+  if (
+    !cartManager.add(
+      product,
+      qty,
+    )
+  ) {
     return;
   }
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
 
-function changeCartQty(id, delta) {
-  const product = getProductById(id);
+function changeCartQty(
+  id,
+  delta,
+) {
+  const product =
+    getProductById(id);
 
   if (!product) {
     return;
   }
 
-  cartManager.change(product, delta);
+  cartManager.change(
+    product,
+    delta,
+  );
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
@@ -269,35 +570,148 @@ function changeCartQty(id, delta) {
 function removeFromCart(id) {
   cartManager.remove(id);
 
-  cart = cartManager.items;
+  cart =
+    cartManager.items;
 
   renderCart();
 }
 
+// ============================================================
+// DOM REFERENCES
+// ============================================================
+
+const carousel =
+  document.getElementById(
+    "carousel",
+  );
+
+const carouselPrev =
+  document.getElementById(
+    "carouselPrev",
+  );
+
+const carouselNext =
+  document.getElementById(
+    "carouselNext",
+  );
+
+const scentSelect =
+  document.getElementById(
+    "scent",
+  );
+
+const tabs =
+  document.querySelectorAll(
+    ".tab",
+  );
+
+let activeCat = "men";
+
+const productSearch =
+  document.getElementById(
+    "productSearch",
+  );
+
+const profileFilter =
+  document.getElementById(
+    "profileFilter",
+  );
+
+const wishlistToggle =
+  document.getElementById(
+    "wishlistToggle",
+  );
+
+const wishlistPanel =
+  document.getElementById(
+    "wishlistPanel",
+  );
+
+const wishlistItems =
+  document.getElementById(
+    "wishlistItems",
+  );
+
+const wishlistEmpty =
+  document.getElementById(
+    "wishlistEmpty",
+  );
+
+// ============================================================
+// CART DOM
+// ============================================================
+
+const cartItemsElement =
+  document.getElementById(
+    "cartItems",
+  );
+
+const cartCountElement =
+  document.getElementById(
+    "cartCount",
+  );
+
+const cartTotalElement =
+  document.getElementById(
+    "cartTotal",
+  );
+
+// ============================================================
+// CART RENDER
+// ============================================================
+
 function renderCart() {
-  const wrap = document.getElementById("cartItems");
+  const wrap =
+    cartItemsElement;
 
-  const count = document.getElementById("cartCount");
+  const count =
+    cartCountElement;
 
-  const total = document.getElementById("cartTotal");
+  const total =
+    cartTotalElement;
 
   if (!wrap) {
     return;
   }
 
-  const valid = cart.filter((item) => getProductById(item.id));
+  const valid =
+    cart.filter((item) =>
+      getProductById(item.id),
+    );
 
-  if (valid.length !== cart.length) {
+  if (
+    valid.length !==
+    cart.length
+  ) {
     cart = valid;
 
-    localStorage.setItem("aeCart", JSON.stringify(cart));
+    cartManager.items =
+      cart;
+
+    cartManager.save();
   }
 
-  const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+  const totalQty =
+    cart.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.qty || 0),
+      0,
+    );
 
-  count.textContent = `${totalQty} ${totalQty === 1 ? "item" : "items"}`;
+  if (count) {
+    count.textContent =
+      `${totalQty} ${
+        totalQty === 1
+          ? "item"
+          : "items"
+      }`;
+  }
 
-  total.textContent = `₱${getCartTotal().toLocaleString()}`;
+  if (total) {
+    total.textContent =
+      `₱${getCartTotal().toLocaleString()}`;
+  }
 
   if (!cart.length) {
     wrap.innerHTML =
@@ -306,191 +720,218 @@ function renderCart() {
     return;
   }
 
-  wrap.innerHTML = cart
-    .map((item) => {
-      const p = getProductById(item.id);
+  const html = [];
 
-      return `
-          <div class="cart-item">
+  for (const item of cart) {
+    const p =
+      getProductById(
+        item.id,
+      );
 
-            <img
-              src="${p.img}"
-              alt="${p.name}"
-            >
+    if (!p) {
+      continue;
+    }
 
-            <div>
+    html.push(`
+      <div class="cart-item">
 
-              <div class="cart-item-name">
-                ${p.name}
-              </div>
+        <img
+          src="${p.img}"
+          alt="${p.name}"
+          loading="lazy"
+          decoding="async"
+        >
 
-              <div class="cart-item-price">
-                ₱${Number(p.price || PRODUCT_PRICE).toLocaleString()}
-                each
-              </div>
+        <div>
 
-            </div>
-
-            <div class="cart-controls">
-
-              <button
-                type="button"
-                data-cart-minus="${p.id}"
-              >
-                −
-              </button>
-
-              <span>
-                ${item.qty}
-              </span>
-
-              <button
-                type="button"
-                data-cart-plus="${p.id}"
-              >
-                +
-              </button>
-
-              <button
-                type="button"
-                class="cart-remove"
-                data-cart-remove="${p.id}"
-                aria-label="Remove ${p.name}"
-              >
-                ×
-              </button>
-
-            </div>
-
+          <div class="cart-item-name">
+            ${p.name}
           </div>
-        `;
-    })
-    .join("");
+
+          <div class="cart-item-price">
+            ₱${Number(
+              p.price ||
+                PRODUCT_PRICE,
+            ).toLocaleString()}
+            each
+          </div>
+
+        </div>
+
+        <div class="cart-controls">
+
+          <button
+            type="button"
+            data-cart-minus="${p.id}"
+          >
+            −
+          </button>
+
+          <span>
+            ${item.qty}
+          </span>
+
+          <button
+            type="button"
+            data-cart-plus="${p.id}"
+          >
+            +
+          </button>
+
+          <button
+            type="button"
+            class="cart-remove"
+            data-cart-remove="${p.id}"
+            aria-label="Remove ${p.name}"
+          >
+            ×
+          </button>
+
+        </div>
+
+      </div>
+    `);
+  }
+
+  wrap.innerHTML =
+    html.join("");
 }
 
 // ============================================================
 // CART EVENTS
 // ============================================================
 
-document.getElementById("cartItems")?.addEventListener("click", (e) => {
-  const minus = e.target.closest("[data-cart-minus]");
+cartItemsElement?.addEventListener(
+  "click",
+  (e) => {
+    const minus =
+      e.target.closest(
+        "[data-cart-minus]",
+      );
 
-  const plus = e.target.closest("[data-cart-plus]");
+    const plus =
+      e.target.closest(
+        "[data-cart-plus]",
+      );
 
-  const remove = e.target.closest("[data-cart-remove]");
+    const remove =
+      e.target.closest(
+        "[data-cart-remove]",
+      );
 
-  if (minus) {
-    changeCartQty(minus.dataset.cartMinus, -1);
-  }
+    if (minus) {
+      changeCartQty(
+        minus.dataset
+          .cartMinus,
+        -1,
+      );
+    }
 
-  if (plus) {
-    changeCartQty(plus.dataset.cartPlus, 1);
-  }
+    if (plus) {
+      changeCartQty(
+        plus.dataset
+          .cartPlus,
+        1,
+      );
+    }
 
-  if (remove) {
-    removeFromCart(remove.dataset.cartRemove);
-  }
-});
+    if (remove) {
+      removeFromCart(
+        remove.dataset
+          .cartRemove,
+      );
+    }
+  },
+);
 
-document.getElementById("addSelectedToCart")?.addEventListener("click", () => {
-  if (scentSelect.value) {
-    addToCart(scentSelect.value, 1);
-  }
-});
-
-// ============================================================
-// DOM REFERENCES
-// ============================================================
-
-const carousel = document.getElementById("carousel");
-
-const carouselPrev = document.getElementById("carouselPrev");
-
-const carouselNext = document.getElementById("carouselNext");
-
-const scentSelect = document.getElementById("scent");
-
-const tabs = document.querySelectorAll(".tab");
-
-let activeCat = "men";
-
-const productSearch = document.getElementById("productSearch");
-
-const profileFilter = document.getElementById("profileFilter");
-
-const wishlistToggle = document.getElementById("wishlistToggle");
-
-const wishlistPanel = document.getElementById("wishlistPanel");
-
-const wishlistItems = document.getElementById("wishlistItems");
-
-const wishlistEmpty = document.getElementById("wishlistEmpty");
+document
+  .getElementById(
+    "addSelectedToCart",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      if (
+        scentSelect?.value
+      ) {
+        addToCart(
+          scentSelect.value,
+          1,
+        );
+      }
+    },
+  );
 
 // ============================================================
 // PRODUCT FILTER
 // ============================================================
 
 function getVisibleProducts(cat) {
-  const query = (productSearch?.value || "").trim().toLowerCase();
-
-  const selectedProfile = String(profileFilter?.value || "all")
+  const query = (
+    productSearch?.value ||
+    ""
+  )
     .trim()
     .toLowerCase();
+
+  const selectedProfile =
+    String(
+      profileFilter?.value ||
+        "all",
+    )
+      .trim()
+      .toLowerCase();
 
   return catalog
     .all()
     .filter((p) => {
-      if (p.active === false) {
+      if (
+        p.active === false
+      ) {
         return false;
       }
 
+      // IMPORTANT:
+      // Product category is p.cat
       if (p.cat !== cat) {
         return false;
       }
 
-      const meta = PRODUCT_META[p.id] || {};
+      const searchData =
+        getProductSearchData(
+          p,
+        );
 
-      // Get product profiles
-      let productProfiles = [];
-
-      if (Array.isArray(meta.profiles)) {
-        productProfiles = meta.profiles;
-      } else if (typeof meta.profiles === "string") {
-        productProfiles = meta.profiles.split(",");
-      }
-
-      // Normalize profiles
-      productProfiles = productProfiles
-        .map((profile) => String(profile).trim().toLowerCase())
-        .filter(Boolean);
-
-      // Search
-      const searchable = [
-        p.name,
-        p.desc,
-        ...(p.topNotes || []),
-        ...(p.heartNotes || []),
-        ...(p.baseNotes || []),
-        ...productProfiles,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      if (query && !searchable.includes(query)) {
+      if (
+        query &&
+        !searchData.searchable.includes(
+          query,
+        )
+      ) {
         return false;
       }
 
-      // Profile filter
       if (
-        selectedProfile !== "all" &&
-        !productProfiles.includes(selectedProfile)
+        selectedProfile !==
+          "all" &&
+        !searchData.profiles.includes(
+          selectedProfile,
+        )
       ) {
         return false;
       }
 
       return true;
     })
-    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+    .sort(
+      (a, b) =>
+        Number(
+          a.sortOrder || 0,
+        ) -
+        Number(
+          b.sortOrder || 0,
+        ),
+    );
 }
 
 // ============================================================
@@ -498,34 +939,62 @@ function getVisibleProducts(cat) {
 // ============================================================
 
 function renderCarousel(cat) {
-  carousel.innerHTML = "";
+  if (!carousel) {
+    return;
+  }
 
-  const products = getVisibleProducts(cat);
+  carousel.innerHTML =
+    "";
+
+  const products =
+    getVisibleProducts(
+      cat,
+    );
+
+  const fragment =
+    document.createDocumentFragment();
 
   products.forEach((p) => {
-    const card = document.createElement("div");
+    const card =
+      document.createElement(
+        "div",
+      );
 
-    card.className = "pcard";
+    card.className =
+      "pcard";
 
-    const meta = PRODUCT_META[p.id] || {};
+    const meta =
+      PRODUCT_META[p.id] ||
+      {};
 
-    const stats = reviewStats[p.id] || {
-      avg: 0,
-      count: 0,
-    };
+    const stats =
+      reviewStats[p.id] || {
+        avg: 0,
+        count: 0,
+      };
 
-    const ratingText = stats.count
-      ? `★ ${stats.avg.toFixed(1)} <span>(${stats.count})</span>`
-      : "No reviews yet";
+    const ratingText =
+      stats.count
+        ? `★ ${stats.avg.toFixed(
+            1,
+          )} <span>(${stats.count})</span>`
+        : "No reviews yet";
 
-    const badges = (meta.badges || [])
-      .map((b) => `<span class="product-badge">${b}</span>`)
+    const badges = (
+      meta.badges || []
+    )
+      .map(
+        (b) =>
+          `<span class="product-badge">${b}</span>`,
+      )
       .join("");
 
-    const saved = favorites.includes(p.id);
+    const saved =
+      favorites.includes(
+        p.id,
+      );
 
     card.innerHTML = `
-
       <div class="pimg">
 
         <div class="product-badges">
@@ -534,10 +1003,18 @@ function renderCarousel(cat) {
 
         <button
           type="button"
-          class="wishlist-btn ${saved ? "active" : ""}"
+          class="wishlist-btn ${
+            saved ? "active" : ""
+          }"
           data-wishlist-id="${p.id}"
-          aria-label="${saved ? "Remove" : "Add"} ${p.name} ${
-            saved ? "from" : "to"
+          aria-label="${
+            saved
+              ? "Remove"
+              : "Add"
+          } ${p.name} ${
+            saved
+              ? "from"
+              : "to"
           } favorites"
         >
           ${saved ? "♥" : "♡"}
@@ -547,15 +1024,19 @@ function renderCarousel(cat) {
           src="${p.img}"
           alt="${p.name}"
           loading="lazy"
+          decoding="async"
         >
 
       </div>
 
-
       <div class="pbody">
 
         <span class="ptag">
-          ${cat === "men" ? "FOR HIM" : "FOR HER"}
+          ${
+            cat === "men"
+              ? "FOR HIM"
+              : "FOR HER"
+          }
         </span>
 
         <h4>
@@ -570,13 +1051,14 @@ function renderCarousel(cat) {
           ${ratingText}
         </div>
 
-
         <div class="pfoot">
 
           <span class="pprice">
-            &#8369;${Number(p.price || PRODUCT_PRICE).toLocaleString()}
+            &#8369;${Number(
+              p.price ||
+                PRODUCT_PRICE,
+            ).toLocaleString()}
           </span>
-
 
           <div class="pactions">
 
@@ -588,31 +1070,45 @@ function renderCarousel(cat) {
               Details
             </button>
 
-
             <button
               type="button"
               class="porder"
               data-id="${p.id}"
-              ${p.stock === 0 ? "disabled" : ""}
+              ${
+                p.stock === 0
+                  ? "disabled"
+                  : ""
+              }
             >
-              ${p.stock === 0 ? "Sold Out" : "Add"}
+              ${
+                p.stock === 0
+                  ? "Sold Out"
+                  : "Add"
+              }
             </button>
 
           </div>
 
         </div>
 
-
         ${
-          p.stock !== null && p.stock !== undefined
+          p.stock !== null &&
+          p.stock !== undefined
             ? `
               <span
                 class="sold-out"
                 style="color:${
-                  p.stock === 0 ? "#d98b8b" : "var(--parchment-dim)"
+                  p.stock === 0
+                    ? "#d98b8b"
+                    : "var(--parchment-dim)"
                 }"
               >
-                ${p.stock === 0 ? "SOLD OUT" : p.stock + " in stock"}
+                ${
+                  p.stock === 0
+                    ? "SOLD OUT"
+                    : p.stock +
+                      " in stock"
+                }
               </span>
             `
             : ""
@@ -621,15 +1117,23 @@ function renderCarousel(cat) {
       </div>
     `;
 
-    carousel.appendChild(card);
+    fragment.appendChild(
+      card,
+    );
   });
 
   if (!products.length) {
     carousel.innerHTML =
       '<div class="summary-empty" style="min-width:100%">No fragrances match your search or filter.</div>';
+  } else {
+    carousel.appendChild(
+      fragment,
+    );
   }
 
-  requestAnimationFrame(updateCarouselArrows);
+  requestAnimationFrame(
+    updateCarouselArrows,
+  );
 }
 
 // ============================================================
@@ -637,24 +1141,53 @@ function renderCarousel(cat) {
 // ============================================================
 
 function updateCarouselArrows() {
-  const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+  if (
+    !carousel ||
+    !carouselPrev ||
+    !carouselNext
+  ) {
+    return;
+  }
 
-  const hasOverflow = maxScroll > 2;
+  const maxScroll =
+    carousel.scrollWidth -
+    carousel.clientWidth;
 
-  carouselPrev.disabled = !hasOverflow || carousel.scrollLeft <= 2;
+  const hasOverflow =
+    maxScroll > 2;
 
-  carouselNext.disabled = !hasOverflow || carousel.scrollLeft >= maxScroll - 2;
+  carouselPrev.disabled =
+    !hasOverflow ||
+    carousel.scrollLeft <= 2;
+
+  carouselNext.disabled =
+    !hasOverflow ||
+    carousel.scrollLeft >=
+      maxScroll - 2;
 }
 
-function scrollCarousel(direction) {
-  const card = carousel.querySelector(".pcard");
+function scrollCarousel(
+  direction,
+) {
+  if (!carousel) {
+    return;
+  }
+
+  const card =
+    carousel.querySelector(
+      ".pcard",
+    );
 
   const gap = 18;
 
-  const amount = card ? card.getBoundingClientRect().width + gap : 248;
+  const amount = card
+    ? card.getBoundingClientRect()
+        .width + gap
+    : 248;
 
   carousel.scrollBy({
-    left: direction * amount,
+    left:
+      direction * amount,
     behavior: "smooth",
   });
 }
@@ -664,124 +1197,305 @@ function scrollCarousel(direction) {
 // ============================================================
 
 function updateWishlistPanel() {
-  wishlistItems.innerHTML = "";
+  if (
+    !wishlistItems ||
+    !wishlistEmpty
+  ) {
+    return;
+  }
 
-  const savedProducts = catalog.all().filter((p) => favorites.includes(p.id));
+  wishlistItems.innerHTML =
+    "";
 
-  wishlistEmpty.style.display = savedProducts.length ? "none" : "block";
+  const savedProducts =
+    catalog
+      .all()
+      .filter((p) =>
+        favorites.includes(
+          p.id,
+        ),
+      );
+
+  wishlistEmpty.style.display =
+    savedProducts.length
+      ? "none"
+      : "block";
+
+  if (!savedProducts.length) {
+    return;
+  }
+
+  const fragment =
+    document.createDocumentFragment();
 
   savedProducts.forEach((p) => {
-    const b = document.createElement("button");
+    const b =
+      document.createElement(
+        "button",
+      );
 
     b.type = "button";
 
-    b.className = "wishlist-item";
+    b.className =
+      "wishlist-item";
 
-    b.textContent = p.name;
+    b.textContent =
+      p.name;
 
-    b.dataset.wishlistJump = p.id;
+    b.dataset.wishlistJump =
+      p.id;
 
-    wishlistItems.appendChild(b);
+    fragment.appendChild(
+      b,
+    );
   });
+
+  wishlistItems.appendChild(
+    fragment,
+  );
 }
 
 function toggleFavorite(id) {
-  favorites = wishlistManager.toggle(id);
+  favorites =
+    wishlistManager.toggle(
+      id,
+    );
 
   updateWishlistPanel();
 
-  renderCarousel(activeCat);
+  renderCarousel(
+    activeCat,
+  );
 }
 
-carouselPrev.addEventListener("click", () => scrollCarousel(-1));
+// ============================================================
+// CAROUSEL LISTENERS
+// ============================================================
 
-carouselNext.addEventListener("click", () => scrollCarousel(1));
+carouselPrev?.addEventListener(
+  "click",
+  () => scrollCarousel(-1),
+);
 
-carousel.addEventListener("scroll", updateCarouselArrows, {
-  passive: true,
-});
+carouselNext?.addEventListener(
+  "click",
+  () => scrollCarousel(1),
+);
 
-window.addEventListener("resize", updateCarouselArrows);
+carousel?.addEventListener(
+  "scroll",
+  updateCarouselArrows,
+  {
+    passive: true,
+  },
+);
 
-productSearch.addEventListener("input", () => renderCarousel(activeCat));
+// ============================================================
+// RESIZE OPTIMIZATION
+// ============================================================
 
-profileFilter.addEventListener("change", () => renderCarousel(activeCat));
+let resizeTimer = null;
 
-wishlistToggle.addEventListener("click", () => {
-  wishlistPanel.classList.toggle("show");
+window.addEventListener(
+  "resize",
+  () => {
+    clearTimeout(
+      resizeTimer,
+    );
 
-  updateWishlistPanel();
-});
+    resizeTimer = setTimeout(
+      updateCarouselArrows,
+      100,
+    );
+  },
+  {
+    passive: true,
+  },
+);
 
-wishlistItems.addEventListener("click", (e) => {
-  const b = e.target.closest("[data-wishlist-jump]");
+// ============================================================
+// SEARCH DEBOUNCE
+// ============================================================
 
-  if (!b) {
-    return;
-  }
+let searchTimer = null;
 
-  const p = catalog.find(b.dataset.wishlistJump);
+productSearch?.addEventListener(
+  "input",
+  () => {
+    clearTimeout(
+      searchTimer,
+    );
 
-  if (!p) {
-    return;
-  }
+    searchTimer = setTimeout(
+      () => {
+        renderCarousel(
+          activeCat,
+        );
+      },
+      150,
+    );
+  },
+);
 
-  activeCat = p.cat;
+// ============================================================
+// PROFILE FILTER
+// ============================================================
 
-  tabs.forEach((t) =>
-    t.classList.toggle("active", t.dataset.cat === activeCat),
-  );
+profileFilter?.addEventListener(
+  "change",
+  () =>
+    renderCarousel(
+      activeCat,
+    ),
+);
 
-  renderCarousel(activeCat);
+// ============================================================
+// WISHLIST PANEL
+// ============================================================
 
-  document.getElementById("collection").scrollIntoView({
-    behavior: "smooth",
-  });
-});
+wishlistToggle?.addEventListener(
+  "click",
+  () => {
+    wishlistPanel?.classList.toggle(
+      "show",
+    );
+
+    updateWishlistPanel();
+  },
+);
+
+wishlistItems?.addEventListener(
+  "click",
+  (e) => {
+    const b =
+      e.target.closest(
+        "[data-wishlist-jump]",
+      );
+
+    if (!b) {
+      return;
+    }
+
+    const p =
+      catalog.find(
+        b.dataset
+          .wishlistJump,
+      );
+
+    if (!p) {
+      return;
+    }
+
+    activeCat = p.cat;
+
+    tabs.forEach((t) =>
+      t.classList.toggle(
+        "active",
+        t.dataset.cat ===
+          activeCat,
+      ),
+    );
+
+    renderCarousel(
+      activeCat,
+    );
+
+    document
+      .getElementById(
+        "collection",
+      )
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  },
+);
+
+// ============================================================
+// SCENT OPTIONS
+// ============================================================
 
 function renderScentOptions() {
-  scentSelect.innerHTML = catalog
-    .all()
-    .map(
-      (p) =>
-        `<option value="${p.id}">${p.name} (${
-          p.cat === "men" ? "For Him" : "For Her"
-        })</option>`,
-    )
-    .join("");
+  if (!scentSelect) {
+    return;
+  }
+
+  scentSelect.innerHTML =
+    catalog
+      .all()
+      .map(
+        (p) =>
+          `<option value="${p.id}">${p.name} (${
+            p.cat === "men"
+              ? "For Him"
+              : "For Her"
+          })</option>`,
+      )
+      .join("");
 }
 
 // ============================================================
 // FRAGRANCE DETAILS MODAL
 // ============================================================
 
-const fragranceModal = document.getElementById("fragranceModal");
+const fragranceModal =
+  document.getElementById(
+    "fragranceModal",
+  );
 
-const fragranceClose = document.getElementById("fragranceClose");
+const fragranceClose =
+  document.getElementById(
+    "fragranceClose",
+  );
 
-const fragranceModalTitle = document.getElementById("fragranceModalTitle");
+const fragranceModalTitle =
+  document.getElementById(
+    "fragranceModalTitle",
+  );
 
-const fragranceModalCategory = document.getElementById(
-  "fragranceModalCategory",
-);
+const fragranceModalCategory =
+  document.getElementById(
+    "fragranceModalCategory",
+  );
 
-const fragranceModalDescription = document.getElementById(
-  "fragranceModalDescription",
-);
+const fragranceModalDescription =
+  document.getElementById(
+    "fragranceModalDescription",
+  );
 
-const fragranceTopNotes = document.getElementById("fragranceTopNotes");
+const fragranceTopNotes =
+  document.getElementById(
+    "fragranceTopNotes",
+  );
 
-const fragranceHeartNotes = document.getElementById("fragranceHeartNotes");
+const fragranceHeartNotes =
+  document.getElementById(
+    "fragranceHeartNotes",
+  );
 
-const fragranceBaseNotes = document.getElementById("fragranceBaseNotes");
+const fragranceBaseNotes =
+  document.getElementById(
+    "fragranceBaseNotes",
+  );
 
-const fragranceApplication = document.getElementById("fragranceApplication");
+const fragranceApplication =
+  document.getElementById(
+    "fragranceApplication",
+  );
 
-const fragranceOccasion = document.getElementById("fragranceOccasion");
+const fragranceOccasion =
+  document.getElementById(
+    "fragranceOccasion",
+  );
 
-const fragranceProfileBars = document.getElementById("fragranceProfileBars");
+const fragranceProfileBars =
+  document.getElementById(
+    "fragranceProfileBars",
+  );
 
-const fragranceDayNight = document.getElementById("fragranceDayNight");
+const fragranceDayNight =
+  document.getElementById(
+    "fragranceDayNight",
+  );
 
 // ============================================================
 // HTML ESCAPE
@@ -789,40 +1503,61 @@ const fragranceDayNight = document.getElementById("fragranceDayNight");
 
 function escapeHTML(value) {
   return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/\'/g, "&#039;");
+    .replace(
+      /&/g,
+      "&amp;",
+    )
+    .replace(
+      /</g,
+      "&lt;",
+    )
+    .replace(
+      />/g,
+      "&gt;",
+    )
+    .replace(
+      /"/g,
+      "&quot;",
+    )
+    .replace(
+      /'/g,
+      "&#039;",
+    );
 }
 
 // ============================================================
 // STRENGTH NORMALIZATION
-//
-// Admin:
-// Subtle
-// Moderate
-// Bold
-//
-// Backward compatibility:
-// Light  -> Subtle
-// Strong -> Bold
 // ============================================================
 
-function normalizeStrength(value) {
-  const strength = String(value || "moderate")
-    .trim()
-    .toLowerCase();
+function normalizeStrength(
+  value,
+) {
+  const strength =
+    String(
+      value || "moderate",
+    )
+      .trim()
+      .toLowerCase();
 
-  if (strength === "light") {
+  if (
+    strength === "light"
+  ) {
     return "subtle";
   }
 
-  if (strength === "strong") {
+  if (
+    strength === "strong"
+  ) {
     return "bold";
   }
 
-  if (["subtle", "moderate", "bold"].includes(strength)) {
+  if (
+    [
+      "subtle",
+      "moderate",
+      "bold",
+    ].includes(strength)
+  ) {
     return strength;
   }
 
@@ -831,20 +1566,20 @@ function normalizeStrength(value) {
 
 // ============================================================
 // OPEN FRAGRANCE DETAILS
-//
-// IMPORTANT:
-// Profiles are now TEXT.
-// Only Longevity + Strength use bars.
 // ============================================================
 
-function openFragranceDetails(productId) {
-  const product = catalog.find(productId);
+function openFragranceDetails(
+  productId,
+) {
+  const product =
+    catalog.find(productId);
 
   if (!product) {
     return;
   }
 
-  fragranceModalTitle.textContent = product.name;
+  fragranceModalTitle.textContent =
+    product.name;
 
   fragranceModalCategory.textContent =
     product.cat === "men"
@@ -852,74 +1587,130 @@ function openFragranceDetails(productId) {
       : "For Her • Extrait de Parfum";
 
   fragranceModalDescription.textContent =
-    product.descLong || product.desc || "";
+    product.descLong ||
+    product.desc ||
+    "";
 
-  fragranceTopNotes.textContent = Array.isArray(product.topNotes)
-    ? product.topNotes.join(" • ")
-    : String(product.topNotes || "");
+  fragranceTopNotes.textContent =
+    Array.isArray(
+      product.topNotes,
+    )
+      ? product.topNotes.join(
+          " • ",
+        )
+      : String(
+          product.topNotes ||
+            "",
+        );
 
-  fragranceHeartNotes.textContent = Array.isArray(product.heartNotes)
-    ? product.heartNotes.join(" • ")
-    : String(product.heartNotes || "");
+  fragranceHeartNotes.textContent =
+    Array.isArray(
+      product.heartNotes,
+    )
+      ? product.heartNotes.join(
+          " • ",
+        )
+      : String(
+          product.heartNotes ||
+            "",
+        );
 
-  fragranceBaseNotes.textContent = Array.isArray(product.baseNotes)
-    ? product.baseNotes.join(" • ")
-    : String(product.baseNotes || "");
+  fragranceBaseNotes.textContent =
+    Array.isArray(
+      product.baseNotes,
+    )
+      ? product.baseNotes.join(
+          " • ",
+        )
+      : String(
+          product.baseNotes ||
+            "",
+        );
 
-  fragranceApplication.textContent = product.application || "";
+  fragranceApplication.textContent =
+    product.application ||
+    "";
 
-  fragranceOccasion.textContent = product.occasion
-    ? "Best suited for: " + product.occasion
-    : "";
+  fragranceOccasion.textContent =
+    product.occasion
+      ? "Best suited for: " +
+        product.occasion
+      : "";
 
-  const meta = PRODUCT_META[product.id] || {};
+  const meta =
+    PRODUCT_META[
+      product.id
+    ] || {};
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // PROFILES
-  //
-  // Admin example:
-  // Fresh, Spicy, Citrus, Amber, Woody
-  //
-  // These are displayed as text tags.
-  // ----------------------------------------------------------
+  // ==========================================================
 
   let profiles = [];
 
-  if (Array.isArray(meta.profiles)) {
-    profiles = meta.profiles
-      .map((profile) => String(profile).trim())
-      .filter(Boolean);
-  } else if (typeof meta.profiles === "string") {
-    profiles = meta.profiles
-      .split(",")
-      .map((profile) => profile.trim())
-      .filter(Boolean);
+  if (
+    Array.isArray(
+      meta.profiles,
+    )
+  ) {
+    profiles =
+      meta.profiles
+        .map((profile) =>
+          String(profile).trim(),
+        )
+        .filter(Boolean);
+  } else if (
+    typeof meta.profiles ===
+    "string"
+  ) {
+    profiles =
+      meta.profiles
+        .split(",")
+        .map((profile) =>
+          profile.trim(),
+        )
+        .filter(Boolean);
   }
 
-  const profileText = profiles.length
-    ? profiles
-        .map(
-          (profile) =>
-            `<span class="profile-tag">${escapeHTML(profile)}</span>`,
-        )
-        .join("")
-    : `
-          <span class="profile-tag">
-            No profile listed
-          </span>
-        `;
+  const profileText =
+    profiles.length
+      ? profiles
+          .map(
+            (profile) =>
+              `<span class="profile-tag">${escapeHTML(
+                profile,
+              )}</span>`,
+          )
+          .join("")
+      : `
+        <span class="profile-tag">
+          No profile listed
+        </span>
+      `;
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // LONGEVITY
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  const longevity = Math.max(0, Math.min(10, Number(meta.longevity) || 7));
+  const longevity =
+    Math.max(
+      0,
+      Math.min(
+        10,
+        Number(
+          meta.longevity,
+        ) || 7,
+      ),
+    );
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // STRENGTH
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  const strengthKey = normalizeStrength(meta.strength);
+  const strengthKey =
+    normalizeStrength(
+      meta.strength,
+    );
 
   const strengthScore = {
     subtle: 4,
@@ -929,18 +1720,15 @@ function openFragranceDetails(productId) {
 
   const strengthLabel = {
     subtle: "Subtle",
-
     moderate: "Moderate",
-
     bold: "Bold",
   }[strengthKey];
 
-  // ----------------------------------------------------------
-  // FINAL PROFILE DISPLAY
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PROFILE DISPLAY
+  // ==========================================================
 
   fragranceProfileBars.innerHTML = `
-
     <div class="profile-section">
 
       <div class="profile-label">
@@ -952,7 +1740,6 @@ function openFragranceDetails(productId) {
       </div>
 
     </div>
-
 
     <div class="profile-row">
 
@@ -975,7 +1762,6 @@ function openFragranceDetails(productId) {
 
     </div>
 
-
     <div class="profile-row">
 
       <span>
@@ -986,7 +1772,9 @@ function openFragranceDetails(productId) {
 
         <span
           class="profile-fill"
-          style="width:${strengthScore * 10}%"
+          style="width:${
+            strengthScore * 10
+          }%"
         ></span>
 
       </span>
@@ -996,39 +1784,62 @@ function openFragranceDetails(productId) {
       </span>
 
     </div>
-
   `;
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // DAY / NIGHT
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  const time = Array.isArray(meta.time)
-    ? meta.time.map((value) => String(value).toLowerCase())
-    : String(meta.time || "")
-        .split(",")
-        .map((value) => value.trim().toLowerCase())
-        .filter(Boolean);
+  const time =
+    Array.isArray(meta.time)
+      ? meta.time.map(
+          (value) =>
+            String(
+              value,
+            ).toLowerCase(),
+        )
+      : String(
+          meta.time || "",
+        )
+          .split(",")
+          .map((value) =>
+            value
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean);
 
   fragranceDayNight.innerHTML = `
-
     <span>
       ☀ Day
-      ${time.includes("day") ? "✓" : ""}
+      ${
+        time.includes("day")
+          ? "✓"
+          : ""
+      }
     </span>
 
     <span>
       🌙 Night
-      ${time.includes("night") ? "✓" : ""}
+      ${
+        time.includes("night")
+          ? "✓"
+          : ""
+      }
     </span>
-
   `;
 
-  fragranceModal.classList.add("show");
+  fragranceModal.classList.add(
+    "show",
+  );
 
-  fragranceModal.setAttribute("aria-hidden", "false");
+  fragranceModal.setAttribute(
+    "aria-hidden",
+    "false",
+  );
 
-  document.body.style.overflow = "hidden";
+  document.body.style.overflow =
+    "hidden";
 }
 
 // ============================================================
@@ -1036,80 +1847,146 @@ function openFragranceDetails(productId) {
 // ============================================================
 
 function closeFragranceDetails() {
-  fragranceModal.classList.remove("show");
+  fragranceModal.classList.remove(
+    "show",
+  );
 
-  fragranceModal.setAttribute("aria-hidden", "true");
+  fragranceModal.setAttribute(
+    "aria-hidden",
+    "true",
+  );
 
-  document.body.style.overflow = "";
+  document.body.style.overflow =
+    "";
 }
 
-fragranceClose.addEventListener("click", closeFragranceDetails);
+fragranceClose?.addEventListener(
+  "click",
+  closeFragranceDetails,
+);
 
-fragranceModal.addEventListener("click", (e) => {
-  if (e.target === fragranceModal) {
-    closeFragranceDetails();
-  }
-});
+fragranceModal?.addEventListener(
+  "click",
+  (e) => {
+    if (
+      e.target ===
+      fragranceModal
+    ) {
+      closeFragranceDetails();
+    }
+  },
+);
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && fragranceModal.classList.contains("show")) {
-    closeFragranceDetails();
-  }
-});
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (
+      e.key === "Escape" &&
+      fragranceModal?.classList.contains(
+        "show",
+      )
+    ) {
+      closeFragranceDetails();
+    }
+  },
+);
 
 // ============================================================
 // CATEGORY TABS
 // ============================================================
 
 tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    tabs.forEach((t) => t.classList.remove("active"));
+  tab.addEventListener(
+    "click",
+    () => {
+      tabs.forEach((t) =>
+        t.classList.remove(
+          "active",
+        ),
+      );
 
-    tab.classList.add("active");
+      tab.classList.add(
+        "active",
+      );
 
-    activeCat = tab.dataset.cat;
+      activeCat =
+        tab.dataset.cat;
 
-    renderCarousel(activeCat);
+      renderCarousel(
+        activeCat,
+      );
 
-    requestAnimationFrame(updateCarouselArrows);
-  });
+      requestAnimationFrame(
+        updateCarouselArrows,
+      );
+    },
+  );
 });
 
 // ============================================================
 // CAROUSEL CLICK EVENTS
 // ============================================================
 
-carousel.addEventListener("click", (e) => {
-  const wish = e.target.closest(".wishlist-btn");
+carousel?.addEventListener(
+  "click",
+  (e) => {
+    const wish =
+      e.target.closest(
+        ".wishlist-btn",
+      );
 
-  if (wish) {
-    toggleFavorite(wish.dataset.wishlistId);
+    if (wish) {
+      toggleFavorite(
+        wish.dataset
+          .wishlistId,
+      );
 
-    return;
-  }
+      return;
+    }
 
-  const detailsBtn = e.target.closest(".pdetails");
+    const detailsBtn =
+      e.target.closest(
+        ".pdetails",
+      );
 
-  if (detailsBtn) {
-    openFragranceDetails(detailsBtn.dataset.detailsId);
+    if (detailsBtn) {
+      openFragranceDetails(
+        detailsBtn.dataset
+          .detailsId,
+      );
 
-    return;
-  }
+      return;
+    }
 
-  const btn = e.target.closest(".porder");
+    const btn =
+      e.target.closest(
+        ".porder",
+      );
 
-  if (!btn || btn.disabled) {
-    return;
-  }
+    if (
+      !btn ||
+      btn.disabled
+    ) {
+      return;
+    }
 
-  addToCart(btn.dataset.id, 1);
+    addToCart(
+      btn.dataset.id,
+      1,
+    );
 
-  scentSelect.value = btn.dataset.id;
+    scentSelect.value =
+      btn.dataset.id;
 
-  document.getElementById("order").scrollIntoView({
-    behavior: "smooth",
-  });
-});
+    document
+      .getElementById(
+        "order",
+      )
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
+  },
+);
 
 // ============================================================
 // INITIAL RENDER
@@ -1119,9 +1996,13 @@ renderScentOptions();
 
 updateWishlistPanel();
 
-renderCarousel(activeCat);
+renderCarousel(
+  activeCat,
+);
 
-requestAnimationFrame(updateCarouselArrows);
+requestAnimationFrame(
+  updateCarouselArrows,
+);
 
 // ============================================================
 // GOOGLE SHEETS DATABASE
@@ -1130,108 +2011,184 @@ requestAnimationFrame(updateCarouselArrows);
 const GOOGLE_SHEETS_WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
 
-apiClient = new ApiClient(GOOGLE_SHEETS_WEB_APP_URL);
+apiClient =
+  new ApiClient(
+    GOOGLE_SHEETS_WEB_APP_URL,
+  );
 
 // ============================================================
 // PRODUCT CATALOG SYNC
 // ============================================================
 
 async function loadManagedProducts() {
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+  if (
+    GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "PASTE_YOUR_",
+    )
+  ) {
     return;
   }
 
   try {
-    const response = await fetch(
-      GOOGLE_SHEETS_WEB_APP_URL + "?action=products",
-      {
-        cache: "no-store",
-      },
-    );
+    const result =
+      await apiClient.get({
+        action: "products",
+      });
 
-    const result = await response.json();
-
-    if (!result.success || !Array.isArray(result.products)) {
+    if (
+      !result.success ||
+      !Array.isArray(
+        result.products,
+      )
+    ) {
       return;
     }
 
-    result.products.forEach((remote) => {
-      const existing = catalog.find(remote.id);
+    result.products.forEach(
+      (remote) => {
+        const existing =
+          catalog.find(
+            remote.id,
+          );
 
-      if (existing) {
-        Object.assign(existing, {
-          ...existing,
-          ...remote,
-
-          img: remote.img || existing.img,
-
-          desc: remote.desc || existing.desc,
-
-          descLong: remote.descLong || existing.descLong,
-
-          topNotes: remote.topNotes?.length
-            ? remote.topNotes
-            : existing.topNotes,
-
-          heartNotes: remote.heartNotes?.length
-            ? remote.heartNotes
-            : existing.heartNotes,
-
-          baseNotes: remote.baseNotes?.length
-            ? remote.baseNotes
-            : existing.baseNotes,
-
-          application: remote.application || existing.application,
-        });
-      } else {
-        catalog.upsert(remote);
-      }
-
-      PRODUCT_META[remote.id] = Object.assign(
-        PRODUCT_META[remote.id] || {},
-
-        {
-          profiles: remote.profiles || [],
-
-          occasion: remote.occasion || "",
-
-          // Convert old values:
-          // light  -> subtle
-          // strong -> bold
-
-          strength: (
+        if (existing) {
+          Object.assign(
+            existing,
             {
-              light: "subtle",
+              ...existing,
+              ...remote,
 
-              strong: "bold",
-            }[String(remote.strength || "moderate").toLowerCase()] ||
-            String(remote.strength || "moderate")
-          ).toLowerCase(),
+              img:
+                remote.img ||
+                existing.img,
 
-          longevity: remote.longevity || 7,
+              desc:
+                remote.desc ||
+                existing.desc,
 
-          projection: remote.projection || 7,
+              descLong:
+                remote.descLong ||
+                existing.descLong,
 
-          time: remote.time || [],
+              topNotes:
+                remote.topNotes
+                  ?.length
+                  ? remote.topNotes
+                  : existing.topNotes,
 
-          badges: remote.badges || [],
+              heartNotes:
+                remote.heartNotes
+                  ?.length
+                  ? remote.heartNotes
+                  : existing.heartNotes,
 
-          sortOrder: remote.sortOrder || 0,
-        },
-      );
-    });
+              baseNotes:
+                remote.baseNotes
+                  ?.length
+                  ? remote.baseNotes
+                  : existing.baseNotes,
+
+              application:
+                remote.application ||
+                existing.application,
+            },
+          );
+
+          // Product changed.
+          // Rebuild its search cache next time.
+          productSearchCache.delete(
+            String(
+              remote.id,
+            ),
+          );
+        } else {
+          catalog.upsert(
+            remote,
+          );
+        }
+
+        PRODUCT_META[
+          remote.id
+        ] = Object.assign(
+          PRODUCT_META[
+            remote.id
+          ] || {},
+
+          {
+            profiles:
+              remote.profiles ||
+              [],
+
+            occasion:
+              remote.occasion ||
+              "",
+
+            strength: (
+              {
+                light:
+                  "subtle",
+
+                strong:
+                  "bold",
+              }[
+                String(
+                  remote.strength ||
+                    "moderate",
+                ).toLowerCase()
+              ] ||
+              String(
+                remote.strength ||
+                  "moderate",
+              )
+            ).toLowerCase(),
+
+            longevity:
+              remote.longevity ||
+              7,
+
+            projection:
+              remote.projection ||
+              7,
+
+            time:
+              remote.time ||
+              [],
+
+            badges:
+              remote.badges ||
+              [],
+
+            sortOrder:
+              remote.sortOrder ||
+              0,
+          },
+        );
+
+        // Metadata changed.
+        productSearchCache.delete(
+          String(
+            remote.id,
+          ),
+        );
+      },
+    );
 
     renderScentOptions();
 
     renderReviewScentOptions();
 
-    renderCarousel(activeCat);
+    renderCarousel(
+      activeCat,
+    );
 
     renderCart();
 
     syncQuantity();
   } catch (error) {
-    console.warn("Managed catalog unavailable; using built-in catalog.", error);
+    console.warn(
+      "Managed catalog unavailable; using built-in catalog.",
+      error,
+    );
   }
 }
 
@@ -1241,175 +2198,371 @@ loadManagedProducts();
 // CUSTOMER REVIEWS
 // ============================================================
 
-const reviewForm = document.getElementById("reviewForm");
+const reviewForm =
+  document.getElementById(
+    "reviewForm",
+  );
 
-const reviewScent = document.getElementById("reviewScent");
+const reviewScent =
+  document.getElementById(
+    "reviewScent",
+  );
 
-const reviewRating = document.getElementById("reviewRating");
+const reviewRating =
+  document.getElementById(
+    "reviewRating",
+  );
 
-const starButtons = document.querySelectorAll("#starSelect button");
+const starButtons =
+  document.querySelectorAll(
+    "#starSelect button",
+  );
 
-const reviewSubmit = document.getElementById("reviewSubmit");
+const reviewSubmit =
+  document.getElementById(
+    "reviewSubmit",
+  );
 
-const reviewStatus = document.getElementById("reviewStatus");
+const reviewStatus =
+  document.getElementById(
+    "reviewStatus",
+  );
 
-const reviewsCarousel = document.getElementById("reviewsCarousel");
+const reviewsCarousel =
+  document.getElementById(
+    "reviewsCarousel",
+  );
 
-const reviewsLoading = document.getElementById("reviewsLoading");
+const reviewsLoading =
+  document.getElementById(
+    "reviewsLoading",
+  );
 
-const reviewsEmpty = document.getElementById("reviewsEmpty");
+const reviewsEmpty =
+  document.getElementById(
+    "reviewsEmpty",
+  );
+
+// ============================================================
+// REVIEW SCENT OPTIONS
+// ============================================================
 
 function renderReviewScentOptions() {
+  if (!reviewScent) {
+    return;
+  }
+
   reviewScent.innerHTML =
     '<option value="">Choose a scent</option>' +
     catalog
       .all()
-      .map((p) => `<option value="${p.id}">${p.name}</option>`)
+      .map(
+        (p) =>
+          `<option value="${p.id}">${p.name}</option>`,
+      )
       .join("");
 }
 
 function setRating(rating) {
-  reviewRating.value = String(rating);
+  reviewRating.value =
+    String(rating);
 
-  starButtons.forEach((btn) => {
-    btn.classList.toggle("active", Number(btn.dataset.rating) <= rating);
-  });
+  starButtons.forEach(
+    (btn) => {
+      btn.classList.toggle(
+        "active",
+        Number(
+          btn.dataset.rating,
+        ) <= rating,
+      );
+    },
+  );
 }
 
-starButtons.forEach((btn) => {
-  btn.addEventListener("click", () => setRating(Number(btn.dataset.rating)));
-});
+starButtons.forEach(
+  (btn) => {
+    btn.addEventListener(
+      "click",
+      () =>
+        setRating(
+          Number(
+            btn.dataset.rating,
+          ),
+        ),
+    );
+  },
+);
 
 setRating(5);
 
 renderReviewScentOptions();
 
-function showReviewStatus(message, type) {
-  reviewStatus.textContent = message;
+function showReviewStatus(
+  message,
+  type,
+) {
+  reviewStatus.textContent =
+    message;
 
-  reviewStatus.className = "review-status show " + type;
+  reviewStatus.className =
+    "review-status show " +
+    type;
 }
 
 function escapeText(value) {
-  return value == null ? "" : String(value);
+  return value == null
+    ? ""
+    : String(value);
 }
 
 // ============================================================
 // RENDER REVIEWS
 // ============================================================
 
-function renderReviews(reviews) {
-  reviewsLoading.style.display = "none";
+function renderReviews(
+  reviews,
+) {
+  reviewsLoading.style.display =
+    "none";
 
-  Object.keys(reviewStats).forEach((k) => delete reviewStats[k]);
+  Object.keys(
+    reviewStats,
+  ).forEach(
+    (k) =>
+      delete reviewStats[k],
+  );
 
-  (reviews || []).forEach((r) => {
-    const p = catalog
-      .all()
-      .find(
-        (x) => x.name.toLowerCase() === String(r.scent || "").toLowerCase(),
-      );
+  (reviews || []).forEach(
+    (r) => {
+      const scentName =
+        String(
+          r.scent || "",
+        ).toLowerCase();
 
-    if (!p) {
-      return;
-    }
+      const p =
+        catalog
+          .all()
+          .find(
+            (x) =>
+              x.name
+                .toLowerCase() ===
+              scentName,
+          );
 
-    reviewStats[p.id] ||= {
-      sum: 0,
-      count: 0,
-      avg: 0,
-    };
+      if (!p) {
+        return;
+      }
 
-    reviewStats[p.id].sum += Number(r.rating) || 0;
+      reviewStats[p.id] ||=
+        {
+          sum: 0,
+          count: 0,
+          avg: 0,
+        };
 
-    reviewStats[p.id].count += 1;
+      reviewStats[p.id].sum +=
+        Number(
+          r.rating,
+        ) || 0;
 
-    reviewStats[p.id].avg = reviewStats[p.id].sum / reviewStats[p.id].count;
-  });
+      reviewStats[p.id]
+        .count += 1;
 
-  renderCarousel(activeCat);
+      reviewStats[p.id].avg =
+        reviewStats[p.id].sum /
+        reviewStats[p.id]
+          .count;
+    },
+  );
 
-  reviewsCarousel.innerHTML = "";
+  renderCarousel(
+    activeCat,
+  );
 
-  if (!reviews || !reviews.length) {
-    reviewsCarousel.style.display = "none";
+  reviewsCarousel.innerHTML =
+    "";
 
-    reviewsEmpty.style.display = "block";
+  if (
+    !reviews ||
+    !reviews.length
+  ) {
+    reviewsCarousel.style.display =
+      "none";
+
+    reviewsEmpty.style.display =
+      "block";
 
     return;
   }
 
-  reviewsEmpty.style.display = "none";
+  reviewsEmpty.style.display =
+    "none";
 
-  reviewsCarousel.style.display = "flex";
+  reviewsCarousel.style.display =
+    "flex";
 
-  reviews.forEach((review) => {
-    const card = document.createElement("article");
+  const fragment =
+    document.createDocumentFragment();
 
-    card.className = "review-card";
+  reviews.forEach(
+    (review) => {
+      const card =
+        document.createElement(
+          "article",
+        );
 
-    const photo = document.createElement("div");
+      card.className =
+        "review-card";
 
-    photo.className = "review-photo";
+      const photo =
+        document.createElement(
+          "div",
+        );
 
-    if (review.photoUrl) {
-      const img = document.createElement("img");
+      photo.className =
+        "review-photo";
 
-      img.src = review.photoUrl;
+      if (
+        review.photoUrl
+      ) {
+        const img =
+          document.createElement(
+            "img",
+          );
 
-      img.alt = "Customer photo for " + escapeText(review.scent);
+        img.src =
+          review.photoUrl;
 
-      img.loading = "lazy";
+        img.alt =
+          "Customer photo for " +
+          escapeText(
+            review.scent,
+          );
 
-      photo.appendChild(img);
-    } else {
-      photo.classList.add("empty");
+        img.loading =
+          "lazy";
 
-      photo.textContent = "CUSTOMER REVIEW";
-    }
+        img.decoding =
+          "async";
 
-    const body = document.createElement("div");
+        photo.appendChild(
+          img,
+        );
+      } else {
+        photo.classList.add(
+          "empty",
+        );
 
-    body.className = "review-body";
+        photo.textContent =
+          "CUSTOMER REVIEW";
+      }
 
-    const stars = document.createElement("div");
+      const body =
+        document.createElement(
+          "div",
+        );
 
-    stars.className = "review-stars";
+      body.className =
+        "review-body";
 
-    const rating = Math.max(1, Math.min(5, Number(review.rating) || 5));
+      const stars =
+        document.createElement(
+          "div",
+        );
 
-    stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
+      stars.className =
+        "review-stars";
 
-    const text = document.createElement("p");
+      const rating =
+        Math.max(
+          1,
+          Math.min(
+            5,
+            Number(
+              review.rating,
+            ) || 5,
+          ),
+        );
 
-    text.className = "review-text";
+      stars.textContent =
+        "★".repeat(
+          rating,
+        ) +
+        "☆".repeat(
+          5 - rating,
+        );
 
-    text.textContent = review.review || "";
+      const text =
+        document.createElement(
+          "p",
+        );
 
-    const meta = document.createElement("div");
+      text.className =
+        "review-text";
 
-    meta.className = "review-meta";
+      text.textContent =
+        review.review || "";
 
-    const name = document.createElement("span");
+      const meta =
+        document.createElement(
+          "div",
+        );
 
-    name.className = "review-name";
+      meta.className =
+        "review-meta";
 
-    name.textContent = review.customerName || review.name || "Customer";
+      const name =
+        document.createElement(
+          "span",
+        );
 
-    const scent = document.createElement("span");
+      name.className =
+        "review-name";
 
-    scent.className = "review-scent";
+      name.textContent =
+        review.customerName ||
+        review.name ||
+        "Customer";
 
-    scent.textContent = (review.scent || "").toUpperCase();
+      const scent =
+        document.createElement(
+          "span",
+        );
 
-    meta.append(name, scent);
+      scent.className =
+        "review-scent";
 
-    body.append(stars, text, meta);
+      scent.textContent =
+        (
+          review.scent ||
+          ""
+        ).toUpperCase();
 
-    card.append(photo, body);
+      meta.append(
+        name,
+        scent,
+      );
 
-    reviewsCarousel.appendChild(card);
-  });
+      body.append(
+        stars,
+        text,
+        meta,
+      );
+
+      card.append(
+        photo,
+        body,
+      );
+
+      fragment.appendChild(
+        card,
+      );
+    },
+  );
+
+  reviewsCarousel.appendChild(
+    fragment,
+  );
 }
 
 // ============================================================
@@ -1417,33 +2570,27 @@ function renderReviews(reviews) {
 // ============================================================
 
 function loadReviews() {
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
+  if (
+    GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "PASTE_YOUR_",
+    )
+  ) {
     reviewsLoading.textContent =
       "Connect the Google Apps Script URL to load customer reviews.";
 
     return;
   }
 
-  const callbackName = "__auraReviews_" + Date.now();
-
-  window[callbackName] = function (data) {
-    try {
-      if (!data || !data.success) {
-        throw new Error(data?.message || "Unable to load reviews.");
-      }
-
-      renderReviews(data.reviews || []);
-    } catch (err) {
-      reviewsLoading.textContent =
-        "Customer reviews are temporarily unavailable.";
-    } finally {
-      cleanup();
-    }
-  };
-
-  const script = document.createElement("script");
+  const callbackName =
+    "__auraReviews_" +
+    Date.now();
 
   let finished = false;
+
+  const script =
+    document.createElement(
+      "script",
+    );
 
   const cleanup = () => {
     if (finished) {
@@ -1452,16 +2599,49 @@ function loadReviews() {
 
     finished = true;
 
-    delete window[callbackName];
+    delete window[
+      callbackName
+    ];
 
     script.remove();
   };
 
+  window[
+    callbackName
+  ] = function (data) {
+    try {
+      if (
+        !data ||
+        !data.success
+      ) {
+        throw new Error(
+          data?.message ||
+            "Unable to load reviews.",
+        );
+      }
+
+      renderReviews(
+        data.reviews || [],
+      );
+    } catch (err) {
+      reviewsLoading.textContent =
+        "Customer reviews are temporarily unavailable.";
+    } finally {
+      cleanup();
+    }
+  };
+
   script.src =
     GOOGLE_SHEETS_WEB_APP_URL +
-    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
+    (GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "?",
+    )
+      ? "&"
+      : "?") +
     "action=reviews&callback=" +
-    encodeURIComponent(callbackName);
+    encodeURIComponent(
+      callbackName,
+    );
 
   script.onerror = () => {
     reviewsLoading.textContent =
@@ -1470,156 +2650,279 @@ function loadReviews() {
     cleanup();
   };
 
-  document.body.appendChild(script);
+  document.body.appendChild(
+    script,
+  );
 }
 
 // ============================================================
 // COMPRESS REVIEW IMAGE
 // ============================================================
 
-function compressReviewImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+function compressReviewImage(
+  file,
+) {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
 
-    reader.onload = () => {
-      const img = new Image();
+      reader.onload = () => {
+        const img =
+          new Image();
 
-      img.onload = () => {
-        const maxSide = 1200;
+        img.onload = () => {
+          const maxSide =
+            1200;
 
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          const scale =
+            Math.min(
+              1,
+              maxSide /
+                Math.max(
+                  img.width,
+                  img.height,
+                ),
+            );
 
-        const canvas = document.createElement("canvas");
+          const canvas =
+            document.createElement(
+              "canvas",
+            );
 
-        canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.width =
+            Math.max(
+              1,
+              Math.round(
+                img.width *
+                  scale,
+              ),
+            );
 
-        canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.height =
+            Math.max(
+              1,
+              Math.round(
+                img.height *
+                  scale,
+              ),
+            );
 
-        const ctx = canvas.getContext("2d");
+          const ctx =
+            canvas.getContext(
+              "2d",
+            );
 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
 
-        resolve(canvas.toDataURL("image/jpeg", 0.78));
+          resolve(
+            canvas.toDataURL(
+              "image/jpeg",
+              0.78,
+            ),
+          );
+        };
+
+        img.onerror = () =>
+          reject(
+            new Error(
+              "The selected image could not be read.",
+            ),
+          );
+
+        img.src =
+          reader.result;
       };
 
-      img.onerror = () =>
-        reject(new Error("The selected image could not be read."));
+      reader.onerror = () =>
+        reject(
+          new Error(
+            "The selected image could not be read.",
+          ),
+        );
 
-      img.src = reader.result;
-    };
-
-    reader.onerror = () =>
-      reject(new Error("The selected image could not be read."));
-
-    reader.readAsDataURL(file);
-  });
+      reader.readAsDataURL(
+        file,
+      );
+    },
+  );
 }
 
 // ============================================================
 // REVIEW FORM
 // ============================================================
 
-reviewForm.addEventListener("submit", async function (e) {
-  e.preventDefault();
+reviewForm?.addEventListener(
+  "submit",
+  async function (e) {
+    e.preventDefault();
 
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
-    showReviewStatus("Add your Google Apps Script Web App URL first.", "error");
-
-    return;
-  }
-
-  const file = document.getElementById("reviewPhoto").files[0];
-
-  if (!file) {
-    showReviewStatus("Please attach a photo with your review.", "error");
-
-    return;
-  }
-
-  if (!file.type.startsWith("image/")) {
-    showReviewStatus("Please upload an image file.", "error");
-
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    showReviewStatus("Please choose an image smaller than 5 MB.", "error");
-
-    return;
-  }
-
-  reviewSubmit.disabled = true;
-
-  reviewSubmit.textContent = "UPLOADING…";
-
-  showReviewStatus("Preparing your photo and review…", "success");
-
-  try {
-    const photoData = await compressReviewImage(file);
-
-    if (photoData.length > 1600000) {
-      throw new Error(
-        "The photo is still too large after compression. Please choose another image.",
+    if (
+      GOOGLE_SHEETS_WEB_APP_URL.includes(
+        "PASTE_YOUR_",
+      )
+    ) {
+      showReviewStatus(
+        "Add your Google Apps Script Web App URL first.",
+        "error",
       );
+
+      return;
     }
 
-    const selectedScent = catalog.all().find((p) => p.id === reviewScent.value);
+    const file =
+      document.getElementById(
+        "reviewPhoto",
+      )?.files?.[0];
 
-    const payload = new URLSearchParams({
-      action: "submitReview",
+    if (!file) {
+      showReviewStatus(
+        "Please attach a photo with your review.",
+        "error",
+      );
 
-      name: document.getElementById("reviewName").value.trim(),
-
-      scent: selectedScent ? selectedScent.name : reviewScent.value,
-
-      scentId: reviewScent.value,
-
-      rating: reviewRating.value,
-
-      review: document.getElementById("reviewText").value.trim(),
-
-      photo: photoData,
-    });
-
-    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-
-      body: payload.toString(),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.message || "Unable to submit review.");
+      return;
     }
+
+    if (
+      !file.type.startsWith(
+        "image/",
+      )
+    ) {
+      showReviewStatus(
+        "Please upload an image file.",
+        "error",
+      );
+
+      return;
+    }
+
+    if (
+      file.size >
+      5 * 1024 * 1024
+    ) {
+      showReviewStatus(
+        "Please choose an image smaller than 5 MB.",
+        "error",
+      );
+
+      return;
+    }
+
+    reviewSubmit.disabled =
+      true;
+
+    reviewSubmit.textContent =
+      "UPLOADING…";
 
     showReviewStatus(
-      "Thank you! Your review was submitted and will appear after approval.",
+      "Preparing your photo and review…",
       "success",
     );
 
-    reviewForm.reset();
+    try {
+      const photoData =
+        await compressReviewImage(
+          file,
+        );
 
-    setRating(5);
+      if (
+        photoData.length >
+        1600000
+      ) {
+        throw new Error(
+          "The photo is still too large after compression. Please choose another image.",
+        );
+      }
 
-    renderReviewScentOptions();
-  } catch (err) {
-    console.error(err);
+      const selectedScent =
+        catalog
+          .all()
+          .find(
+            (p) =>
+              p.id ===
+              reviewScent.value,
+          );
 
-    showReviewStatus(
-      err.message || "Unable to submit your review. Please try again.",
-      "error",
-    );
-  } finally {
-    reviewSubmit.disabled = false;
+      const payload =
+        new URLSearchParams({
+          action:
+            "submitReview",
 
-    reviewSubmit.textContent = "SUBMIT REVIEW";
-  }
-});
+          name: document
+            .getElementById(
+              "reviewName",
+            )
+            .value.trim(),
+
+          scent: selectedScent
+            ? selectedScent.name
+            : reviewScent.value,
+
+          scentId:
+            reviewScent.value,
+
+          rating:
+            reviewRating.value,
+
+          review: document
+            .getElementById(
+              "reviewText",
+            )
+            .value.trim(),
+
+          photo: photoData,
+        });
+
+      const response =
+        await apiClient.post(
+          Object.fromEntries(
+            payload.entries(),
+          ),
+        );
+
+      if (
+        !response.success
+      ) {
+        throw new Error(
+          response.message ||
+            "Unable to submit review.",
+        );
+      }
+
+      showReviewStatus(
+        "Thank you! Your review was submitted and will appear after approval.",
+        "success",
+      );
+
+      reviewForm.reset();
+
+      setRating(5);
+
+      renderReviewScentOptions();
+    } catch (err) {
+      console.error(err);
+
+      showReviewStatus(
+        err.message ||
+          "Unable to submit your review. Please try again.",
+        "error",
+      );
+    } finally {
+      reviewSubmit.disabled =
+        false;
+
+      reviewSubmit.textContent =
+        "SUBMIT REVIEW";
+    }
+  },
+);
 
 loadReviews();
 
@@ -1634,7 +2937,7 @@ const quizAnswers = {
 };
 
 // ============================================================
-// FIND YOUR SCENT PROFILE / CHARACTER LIST
+// FIND YOUR SCENT PROFILE
 // ============================================================
 
 const SCENT_PROFILES = [
@@ -1663,27 +2966,23 @@ const SCENT_PROFILES = [
 // NORMALIZE PROFILE
 // ============================================================
 
-function normalizeProfile(value) {
+function normalizeProfile(
+  value,
+) {
   return String(value || "")
     .trim()
     .toLowerCase();
 }
 
 // ============================================================
-// CREATE PROFILE OPTIONS DYNAMICALLY
-//
-// This automatically creates all Find Your Scent
-// character/profile buttons.
-//
-// Existing HTML only needs:
-//
-// <div class="quiz-options" data-question="profile"></div>
+// CREATE PROFILE OPTIONS
 // ============================================================
 
 function renderScentProfileQuizOptions() {
-  const profileGroup = document.querySelector(
-    '.quiz-options[data-question="profile"]',
-  );
+  const profileGroup =
+    document.querySelector(
+      '.quiz-options[data-question="profile"]',
+    );
 
   if (!profileGroup) {
     console.warn(
@@ -1693,142 +2992,223 @@ function renderScentProfileQuizOptions() {
     return;
   }
 
-  profileGroup.innerHTML = SCENT_PROFILES.map((profile) => {
-    const value = normalizeProfile(profile);
+  profileGroup.innerHTML =
+    SCENT_PROFILES.map(
+      (profile) => {
+        const value =
+          normalizeProfile(
+            profile,
+          );
 
-    return `
-      <button
-        type="button"
-        class="quiz-option"
-        data-value="${escapeHTML(value)}"
-      >
-        ${escapeHTML(profile)}
-      </button>
-    `;
-  }).join("");
+        return `
+          <button
+            type="button"
+            class="quiz-option"
+            data-value="${escapeHTML(
+              value,
+            )}"
+          >
+            ${escapeHTML(
+              profile,
+            )}
+          </button>
+        `;
+      },
+    ).join("");
 }
 
 // ============================================================
-// QUIZ OPTION SELECTION
-//
-// PROFILE / CHARACTER:
-// Multiple selection
-//
-// OCCASION:
-// Single selection
-//
-// STRENGTH:
-// Single selection
+// QUIZ OPTIONS
 // ============================================================
 
 function setupQuizOptions() {
-  const quizGroups = document.querySelectorAll(".quiz-options");
+  const quizGroups =
+    document.querySelectorAll(
+      ".quiz-options",
+    );
 
-  quizGroups.forEach((group) => {
-    group.addEventListener("click", (e) => {
-      const btn = e.target.closest(".quiz-option");
+  quizGroups.forEach(
+    (group) => {
+      group.addEventListener(
+        "click",
+        (e) => {
+          const btn =
+            e.target.closest(
+              ".quiz-option",
+            );
 
-      if (!btn) {
-        return;
-      }
+          if (!btn) {
+            return;
+          }
 
-      const question = group.dataset.question;
+          const question =
+            group.dataset
+              .question;
 
-      let value = btn.dataset.value || "";
+          let value =
+            btn.dataset.value ||
+            "";
 
-      // ======================================================
-      // PROFILE / CHARACTER
-      //
-      // MULTIPLE SELECTION
-      // ======================================================
+          // --------------------------------------------------
+          // PROFILE
+          // --------------------------------------------------
 
-      if (question === "profile") {
-        const profile = normalizeProfile(value);
+          if (
+            question ===
+            "profile"
+          ) {
+            const profile =
+              normalizeProfile(
+                value,
+              );
 
-        if (!profile) {
-          return;
-        }
+            if (!profile) {
+              return;
+            }
 
-        const currentProfiles = Array.isArray(quizAnswers.profile)
-          ? quizAnswers.profile
-          : [];
+            const currentProfiles =
+              Array.isArray(
+                quizAnswers.profile,
+              )
+                ? quizAnswers.profile
+                : [];
 
-        const exists = currentProfiles.includes(profile);
+            const exists =
+              currentProfiles.includes(
+                profile,
+              );
 
-        if (exists) {
-          // Remove selected profile
-          quizAnswers.profile = currentProfiles.filter(
-            (item) => item !== profile,
-          );
-        } else {
-          // Add selected profile
-          quizAnswers.profile = [...currentProfiles, profile];
-        }
+            if (exists) {
+              quizAnswers.profile =
+                currentProfiles.filter(
+                  (item) =>
+                    item !==
+                    profile,
+                );
+            } else {
+              quizAnswers.profile =
+                [
+                  ...currentProfiles,
+                  profile,
+                ];
+            }
 
-        // Update visual selected state
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          const optionValue = normalizeProfile(option.dataset.value);
+            group
+              .querySelectorAll(
+                ".quiz-option",
+              )
+              .forEach(
+                (option) => {
+                  const optionValue =
+                    normalizeProfile(
+                      option.dataset
+                        .value,
+                    );
 
-          option.classList.toggle(
-            "active",
-            quizAnswers.profile.includes(optionValue),
-          );
-        });
+                  option.classList.toggle(
+                    "active",
+                    quizAnswers.profile.includes(
+                      optionValue,
+                    ),
+                  );
+                },
+              );
 
-        return;
-      }
+            return;
+          }
 
-      // ======================================================
-      // STRENGTH
-      //
-      // SINGLE SELECTION
-      // ======================================================
+          // --------------------------------------------------
+          // STRENGTH
+          // --------------------------------------------------
 
-      if (question === "strength") {
-        value = normalizeStrength(value);
+          if (
+            question ===
+            "strength"
+          ) {
+            value =
+              normalizeStrength(
+                value,
+              );
 
-        quizAnswers.strength = value;
+            quizAnswers.strength =
+              value;
 
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          option.classList.toggle("active", option === btn);
-        });
+            group
+              .querySelectorAll(
+                ".quiz-option",
+              )
+              .forEach(
+                (option) => {
+                  option.classList.toggle(
+                    "active",
+                    option ===
+                      btn,
+                  );
+                },
+              );
 
-        return;
-      }
+            return;
+          }
 
-      // ======================================================
-      // OCCASION
-      //
-      // SINGLE SELECTION
-      // ======================================================
+          // --------------------------------------------------
+          // OCCASION
+          // --------------------------------------------------
 
-      if (question === "occasion") {
-        quizAnswers.occasion = normalizeProfile(value);
+          if (
+            question ===
+            "occasion"
+          ) {
+            quizAnswers.occasion =
+              normalizeProfile(
+                value,
+              );
 
-        group.querySelectorAll(".quiz-option").forEach((option) => {
-          option.classList.toggle("active", option === btn);
-        });
+            group
+              .querySelectorAll(
+                ".quiz-option",
+              )
+              .forEach(
+                (option) => {
+                  option.classList.toggle(
+                    "active",
+                    option ===
+                      btn,
+                  );
+                },
+              );
 
-        return;
-      }
+            return;
+          }
 
-      // ======================================================
-      // OTHER QUIZ QUESTIONS
-      //
-      // Keep original single-select behavior
-      // ======================================================
+          // --------------------------------------------------
+          // OTHER
+          // --------------------------------------------------
 
-      quizAnswers[question] = value;
+          quizAnswers[
+            question
+          ] = value;
 
-      group.querySelectorAll(".quiz-option").forEach((option) => {
-        option.classList.toggle("active", option === btn);
-      });
-    });
-  });
+          group
+            .querySelectorAll(
+              ".quiz-option",
+            )
+            .forEach(
+              (option) => {
+                option.classList.toggle(
+                  "active",
+                  option ===
+                    btn,
+                );
+              },
+            );
+        },
+      );
+    },
+  );
 }
 
 // ============================================================
-// INITIALIZE QUIZ OPTIONS
+// INITIALIZE QUIZ
 // ============================================================
 
 renderScentProfileQuizOptions();
@@ -1839,317 +3219,577 @@ setupQuizOptions();
 // FIND MY SCENT
 // ============================================================
 
-document.getElementById("findScentBtn")?.addEventListener("click", () => {
-  // ==========================================================
-  // SELECTED PROFILE / CHARACTER
-  // ==========================================================
+document
+  .getElementById(
+    "findScentBtn",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      const selectedProfiles =
+        Array.isArray(
+          quizAnswers.profile,
+        )
+          ? quizAnswers.profile
+              .map(
+                (
+                  profile,
+                ) =>
+                  normalizeProfile(
+                    profile,
+                  ),
+              )
+              .filter(Boolean)
+          : [];
 
-  const selectedProfiles = Array.isArray(quizAnswers.profile)
-    ? quizAnswers.profile
-        .map((profile) => normalizeProfile(profile))
-        .filter(Boolean)
-    : [];
+      const selectedOccasion =
+        normalizeProfile(
+          quizAnswers.occasion,
+        );
 
-  // ==========================================================
-  // SELECTED OCCASION
-  // ==========================================================
+      const selectedStrength =
+        normalizeStrength(
+          quizAnswers.strength,
+        );
 
-  const selectedOccasion = normalizeProfile(quizAnswers.occasion);
+      const scores =
+        catalog
+          .all()
+          .filter(
+            (product) =>
+              product.active !==
+              false,
+          )
+          .map(
+            (product) => {
+              const meta =
+                PRODUCT_META[
+                  product.id
+                ] || {};
 
-  // ==========================================================
-  // SELECTED STRENGTH
-  // ==========================================================
+              let score = 0;
 
-  const selectedStrength = normalizeStrength(quizAnswers.strength);
+              let productProfiles =
+                [];
 
-  // ==========================================================
-  // SCORE PRODUCTS
-  // ==========================================================
+              if (
+                Array.isArray(
+                  meta.profiles,
+                )
+              ) {
+                productProfiles =
+                  meta.profiles
+                    .map(
+                      (
+                        profile,
+                      ) =>
+                        normalizeProfile(
+                          profile,
+                        ),
+                    )
+                    .filter(
+                      Boolean,
+                    );
+              } else {
+                productProfiles =
+                  String(
+                    meta.profiles ||
+                      "",
+                  )
+                    .split(",")
+                    .map(
+                      (
+                        profile,
+                      ) =>
+                        normalizeProfile(
+                          profile,
+                        ),
+                    )
+                    .filter(
+                      Boolean,
+                    );
+              }
 
-  const scores = catalog
-    .all()
-    .filter((product) => product.active !== false)
-    .map((product) => {
-      const meta = PRODUCT_META[product.id] || {};
+              if (
+                selectedProfiles.length
+              ) {
+                selectedProfiles.forEach(
+                  (
+                    selectedProfile,
+                  ) => {
+                    if (
+                      productProfiles.includes(
+                        selectedProfile,
+                      )
+                    ) {
+                      score += 4;
+                    }
+                  },
+                );
+              }
 
-      let score = 0;
+              const productOccasions =
+                Array.isArray(
+                  meta.occasion,
+                )
+                  ? meta.occasion
+                      .map(
+                        (
+                          value,
+                        ) =>
+                          normalizeProfile(
+                            value,
+                          ),
+                      )
+                      .filter(
+                        Boolean,
+                      )
+                  : String(
+                      meta.occasion ||
+                        "",
+                    )
+                      .split(",")
+                      .map(
+                        (
+                          value,
+                        ) =>
+                          normalizeProfile(
+                            value,
+                          ),
+                      )
+                      .filter(
+                        Boolean,
+                      );
 
-      // ======================================================
-      // PRODUCT PROFILES
-      // ======================================================
+              if (
+                selectedOccasion &&
+                productOccasions.includes(
+                  selectedOccasion,
+                )
+              ) {
+                score += 3;
+              }
 
-      const productProfiles = Array.isArray(meta.profiles)
-        ? meta.profiles
-            .map((profile) => normalizeProfile(profile))
-            .filter(Boolean)
-        : String(meta.profiles || "")
-            .split(",")
-            .map((profile) => normalizeProfile(profile))
-            .filter(Boolean);
+              const productStrength =
+                normalizeStrength(
+                  meta.strength,
+                );
 
-      // ======================================================
-      // MULTIPLE PROFILE MATCH
-      //
-      // Every selected profile that matches the perfume
-      // adds points.
-      //
-      // Example:
-      //
-      // User:
-      // Fresh + Citrus + Aquatic
-      //
-      // Perfume:
-      // Fresh + Citrus
-      //
-      // Score:
-      // +4 Fresh
-      // +4 Citrus
-      // = +8
-      // ======================================================
+              if (
+                quizAnswers.strength &&
+                productStrength ===
+                  selectedStrength
+              ) {
+                score += 2;
+              }
 
-      if (selectedProfiles.length) {
-        selectedProfiles.forEach((selectedProfile) => {
-          if (productProfiles.includes(selectedProfile)) {
-            score += 4;
-          }
-        });
+              return {
+                p: product,
+                score,
+                matchedProfiles:
+                  selectedProfiles.filter(
+                    (
+                      profile,
+                    ) =>
+                      productProfiles.includes(
+                        profile,
+                      ),
+                  ),
+              };
+            },
+          )
+          .sort(
+            (a, b) => {
+              if (
+                b.score !==
+                a.score
+              ) {
+                return (
+                  b.score -
+                  a.score
+                );
+              }
+
+              return (
+                b.matchedProfiles
+                  .length -
+                a.matchedProfiles
+                  .length
+              );
+            },
+          );
+
+      const winner =
+        scores[0]?.p ||
+        catalog.all()[0];
+
+      if (!winner) {
+        return;
       }
 
-      // ======================================================
-      // OCCASION MATCH
-      // ======================================================
+      document.getElementById(
+        "quizResultName",
+      ).textContent =
+        winner.name;
 
-      const productOccasions = Array.isArray(meta.occasion)
-        ? meta.occasion.map((value) => normalizeProfile(value)).filter(Boolean)
-        : String(meta.occasion || "")
-            .split(",")
-            .map((value) => normalizeProfile(value))
-            .filter(Boolean);
+      const winnerMeta =
+        PRODUCT_META[
+          winner.id
+        ] || {};
 
-      if (selectedOccasion && productOccasions.includes(selectedOccasion)) {
-        score += 3;
+      const winnerProfiles =
+        Array.isArray(
+          winnerMeta.profiles,
+        )
+          ? winnerMeta.profiles
+          : String(
+              winnerMeta.profiles ||
+                "",
+            )
+              .split(",")
+              .map(
+                (profile) =>
+                  profile.trim(),
+              )
+              .filter(Boolean);
+
+      const matchedProfiles =
+        selectedProfiles.filter(
+          (selected) =>
+            winnerProfiles.some(
+              (profile) =>
+                normalizeProfile(
+                  profile,
+                ) ===
+                normalizeProfile(
+                  selected,
+                ),
+            ),
+        );
+
+      let resultText =
+        winner.desc || "";
+
+      if (
+        matchedProfiles.length
+      ) {
+        resultText +=
+          " Your selected scent character" +
+          (matchedProfiles.length >
+          1
+            ? "s are: "
+            : " is: ") +
+          matchedProfiles
+            .map(
+              (profile) =>
+                profile
+                  .charAt(0)
+                  .toUpperCase() +
+                profile.slice(
+                  1,
+                ),
+            )
+            .join(", ") +
+          ".";
       }
 
-      // ======================================================
-      // STRENGTH MATCH
-      // ======================================================
-
-      const productStrength = normalizeStrength(meta.strength);
-
-      if (quizAnswers.strength && productStrength === selectedStrength) {
-        score += 2;
+      if (
+        winner.occasion
+      ) {
+        resultText +=
+          " Best suited for: " +
+          winner.occasion +
+          ".";
       }
 
-      // ======================================================
-      // RETURN SCORE
-      // ======================================================
+      document.getElementById(
+        "quizResultText",
+      ).textContent =
+        resultText;
 
-      return {
-        p: product,
-        score,
-        matchedProfiles: selectedProfiles.filter((profile) =>
-          productProfiles.includes(profile),
-        ),
-      };
-    })
-    .sort((a, b) => {
-      // Highest score first
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
+      document
+        .getElementById(
+          "quizResult",
+        )
+        .classList.add(
+          "show",
+        );
 
-      // If tied, prefer more matching profiles
-      return b.matchedProfiles.length - a.matchedProfiles.length;
-    });
-
-  // ==========================================================
-  // GET WINNER
-  // ==========================================================
-
-  const winner = scores[0]?.p || catalog.all()[0];
-
-  if (!winner) {
-    return;
-  }
-
-  // ==========================================================
-  // DISPLAY RESULT
-  // ==========================================================
-
-  document.getElementById("quizResultName").textContent = winner.name;
-
-  // Get winner metadata
-  const winnerMeta = PRODUCT_META[winner.id] || {};
-
-  const winnerProfiles = Array.isArray(winnerMeta.profiles)
-    ? winnerMeta.profiles
-    : String(winnerMeta.profiles || "")
-        .split(",")
-        .map((profile) => profile.trim())
-        .filter(Boolean);
-
-  // ==========================================================
-  // MATCHED PROFILE DISPLAY
-  // ==========================================================
-
-  const matchedProfiles = selectedProfiles.filter((selected) =>
-    winnerProfiles.some(
-      (profile) => normalizeProfile(profile) === normalizeProfile(selected),
-    ),
+      document.getElementById(
+        "quizOrderBtn",
+      ).dataset.id =
+        winner.id;
+    },
   );
-
-  let resultText = winner.desc || "";
-
-  if (matchedProfiles.length) {
-    resultText +=
-      " Your selected scent character" +
-      (matchedProfiles.length > 1 ? "s are: " : " is: ") +
-      matchedProfiles
-        .map((profile) => profile.charAt(0).toUpperCase() + profile.slice(1))
-        .join(", ") +
-      ".";
-  }
-
-  if (winner.occasion) {
-    resultText += " Best suited for: " + winner.occasion + ".";
-  }
-
-  document.getElementById("quizResultText").textContent = resultText;
-
-  // ==========================================================
-  // SHOW RESULT
-  // ==========================================================
-
-  document.getElementById("quizResult").classList.add("show");
-
-  // ==========================================================
-  // SET ORDER BUTTON
-  // ==========================================================
-
-  document.getElementById("quizOrderBtn").dataset.id = winner.id;
-});
 
 // ============================================================
 // QUIZ ORDER BUTTON
 // ============================================================
 
-document.getElementById("quizOrderBtn")?.addEventListener("click", (e) => {
-  const productId = e.currentTarget.dataset.id;
+document
+  .getElementById(
+    "quizOrderBtn",
+  )
+  ?.addEventListener(
+    "click",
+    (e) => {
+      const productId =
+        e.currentTarget
+          .dataset.id;
 
-  if (!productId) {
-    return;
-  }
+      if (!productId) {
+        return;
+      }
 
-  scentSelect.value = productId;
+      scentSelect.value =
+        productId;
 
-  syncQuantity();
+      syncQuantity();
 
-  document.getElementById("order")?.scrollIntoView({
-    behavior: "smooth",
-  });
-});
+      document
+        .getElementById(
+          "order",
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+        });
+    },
+  );
 
 // ============================================================
 // BUILD YOUR DUO
 // ============================================================
 
-const duoOne = document.getElementById("duoOne");
-
-const duoTwo = document.getElementById("duoTwo");
-
-const duoTotal = document.getElementById("duoTotal");
-
-[duoOne, duoTwo].forEach((select) => {
-  select.innerHTML = catalog
-    .all()
-    .map((p) => `<option value="${p.id}">${p.name}</option>`)
-    .join("");
-
-  select.addEventListener(
-    "change",
-    () =>
-      (duoTotal.textContent = `2 bottles • ₱${(
-        PRODUCT_PRICE * 2
-      ).toLocaleString()}`),
+const duoOne =
+  document.getElementById(
+    "duoOne",
   );
-});
 
-document.getElementById("duoOrderBtn").addEventListener("click", () => {
-  const names = [duoOne.value, duoTwo.value];
+const duoTwo =
+  document.getElementById(
+    "duoTwo",
+  );
 
-  scentSelect.value = names[0];
+const duoTotal =
+  document.getElementById(
+    "duoTotal",
+  );
 
-  document.getElementById("qtyNumber").value = 2;
+[duoOne, duoTwo].forEach(
+  (select) => {
+    if (!select) {
+      return;
+    }
 
-  syncQuantity();
+    select.innerHTML =
+      catalog
+        .all()
+        .map(
+          (p) =>
+            `<option value="${p.id}">${p.name}</option>`,
+        )
+        .join("");
 
-  document.getElementById("notes").value =
-    "Duo: " + names.map((id) => catalog.find(id)?.name || id).join(" + ");
+    select.addEventListener(
+      "change",
+      () => {
+        duoTotal.textContent =
+          `2 bottles • ₱${(
+            PRODUCT_PRICE * 2
+          ).toLocaleString()}`;
+      },
+    );
+  },
+);
 
-  document.getElementById("order").scrollIntoView({
-    behavior: "smooth",
-  });
-});
+document
+  .getElementById(
+    "duoOrderBtn",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      const names = [
+        duoOne.value,
+        duoTwo.value,
+      ];
+
+      scentSelect.value =
+        names[0];
+
+      document.getElementById(
+        "qtyNumber",
+      ).value = 2;
+
+      syncQuantity();
+
+      document.getElementById(
+        "notes",
+      ).value =
+        "Duo: " +
+        names
+          .map(
+            (id) =>
+              catalog.find(
+                id,
+              )?.name || id,
+          )
+          .join(" + ");
+
+      document
+        .getElementById(
+          "order",
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+        });
+    },
+  );
 
 // ============================================================
 // ORDER FORM
 // ============================================================
 
-const form = document.getElementById("orderForm");
+const form =
+  document.getElementById(
+    "orderForm",
+  );
 
-const summaryEmpty = document.getElementById("summaryEmpty");
+const summaryEmpty =
+  document.getElementById(
+    "summaryEmpty",
+  );
 
-const summaryLines = document.getElementById("summaryLines");
+const summaryLines =
+  document.getElementById(
+    "summaryLines",
+  );
 
-const summaryActions = document.getElementById("summaryActions");
+const summaryActions =
+  document.getElementById(
+    "summaryActions",
+  );
 
-const copyBtn = document.getElementById("copyBtn");
+const copyBtn =
+  document.getElementById(
+    "copyBtn",
+  );
 
-const qtyNumber = document.getElementById("qtyNumber");
+const qtyNumber =
+  document.getElementById(
+    "qtyNumber",
+  );
 
-const qtyHidden = document.getElementById("qty");
+const qtyHidden =
+  document.getElementById(
+    "qty",
+  );
 
-const liveTotal = document.getElementById("liveTotal");
+const liveTotal =
+  document.getElementById(
+    "liveTotal",
+  );
 
 // ============================================================
 // QUANTITY
 // ============================================================
 
 function syncQuantity() {
-  let n = Math.max(1, Math.min(10, parseInt(qtyNumber.value || "1", 10)));
+  if (
+    !qtyNumber ||
+    !qtyHidden ||
+    !liveTotal
+  ) {
+    return 1;
+  }
 
-  qtyNumber.value = n;
+  let n = Math.max(
+    1,
+    Math.min(
+      10,
+      parseInt(
+        qtyNumber.value ||
+          "1",
+        10,
+      ),
+    ),
+  );
 
-  qtyHidden.value = n + (n === 1 ? " bottle" : " bottles");
+  qtyNumber.value =
+    n;
 
-  const selectedId = scentSelect.value;
+  qtyHidden.value =
+    n +
+    (n === 1
+      ? " bottle"
+      : " bottles");
 
-  const p = getProductById(selectedId);
+  const selectedId =
+    scentSelect.value;
+
+  const p =
+    getProductById(
+      selectedId,
+    );
 
   liveTotal.textContent =
     "Estimated total: ₱" +
     (
-      (p ? Number(p.price || PRODUCT_PRICE) : PRODUCT_PRICE) * n
+      (p
+        ? Number(
+            p.price ||
+              PRODUCT_PRICE,
+          )
+        : PRODUCT_PRICE) *
+      n
     ).toLocaleString();
 
   return n;
 }
 
-document.getElementById("qtyMinus").addEventListener("click", () => {
-  qtyNumber.value = Number(qtyNumber.value || 1) - 1;
+document
+  .getElementById(
+    "qtyMinus",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      qtyNumber.value =
+        Number(
+          qtyNumber.value ||
+            1,
+        ) - 1;
 
-  syncQuantity();
-});
+      syncQuantity();
+    },
+  );
 
-document.getElementById("qtyPlus").addEventListener("click", () => {
-  qtyNumber.value = Number(qtyNumber.value || 1) + 1;
+document
+  .getElementById(
+    "qtyPlus",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      qtyNumber.value =
+        Number(
+          qtyNumber.value ||
+            1,
+        ) + 1;
 
-  syncQuantity();
-});
+      syncQuantity();
+    },
+  );
 
-qtyNumber.addEventListener("input", syncQuantity);
+qtyNumber?.addEventListener(
+  "input",
+  syncQuantity,
+);
 
-scentSelect.addEventListener("change", syncQuantity);
+scentSelect?.addEventListener(
+  "change",
+  syncQuantity,
+);
 
 syncQuantity();
 
@@ -2159,254 +3799,438 @@ renderCart();
 // SUBMIT STATUS
 // ============================================================
 
-function showSubmitStatus(message, type) {
-  const status = document.getElementById("submitStatus");
+function showSubmitStatus(
+  message,
+  type,
+) {
+  const status =
+    document.getElementById(
+      "submitStatus",
+    );
 
-  status.textContent = message;
+  if (!status) {
+    return;
+  }
 
-  status.className = "submit-status show " + type;
+  status.textContent =
+    message;
+
+  status.className =
+    "submit-status show " +
+    type;
 }
 
 // ============================================================
 // ORDER SUBMISSION
 // ============================================================
 
-form.addEventListener("submit", async function (e) {
-  e.preventDefault();
+form?.addEventListener(
+  "submit",
+  async function (e) {
+    e.preventDefault();
 
-  const submitBtn = document.getElementById("submitBtn");
+    const submitBtn =
+      document.getElementById(
+        "submitBtn",
+      );
 
-  const data = new FormData(form);
+    const data =
+      new FormData(form);
 
-  if (!cart.length) {
+    if (!cart.length) {
+      showSubmitStatus(
+        "Please add at least one fragrance to your cart.",
+        "error",
+      );
+
+      return;
+    }
+
+    const quantityNumber =
+      cart.reduce(
+        (sum, item) =>
+          sum +
+          Number(
+            item.qty || 0,
+          ),
+        0,
+      );
+
+    const orderTotal =
+      getCartTotal();
+
+    const scentName =
+      cart
+        .map(
+          (item) =>
+            getProductById(
+              item.id,
+            )?.name ||
+            item.id,
+        )
+        .join(", ");
+
+    const cartLines =
+      cart
+        .map((item) => {
+          const p =
+            getProductById(
+              item.id,
+            );
+
+          return `
+${p.name} × ${item.qty} — ₱${(
+            Number(
+              p.price ||
+                PRODUCT_PRICE,
+            ) * item.qty
+          ).toLocaleString()}`;
+        })
+        .join("\n");
+
+    const lines = [
+      "AURA & ESSENCE — Order",
+
+      "—————————————",
+
+      "Name: " +
+        data.get(
+          "fullname",
+        ),
+
+      "Contact: " +
+        data.get(
+          "contact",
+        ),
+
+      "Items:",
+
+      cartLines,
+
+      "Location: " +
+        data.get(
+          "address",
+        ),
+
+      "Payment: " +
+        data.get(
+          "payment",
+        ),
+
+      "Notes: " +
+        (data.get(
+          "notes",
+        ) || "—"),
+
+      "—————————————",
+
+      "Total items: " +
+        quantityNumber,
+
+      "Estimated total: ₱" +
+        orderTotal.toLocaleString(),
+    ].join("\n");
+
+    summaryLines.textContent =
+      lines;
+
+    summaryEmpty.style.display =
+      "none";
+
+    summaryLines.style.display =
+      "block";
+
+    summaryActions.style.display =
+      "flex";
+
+    if (
+      GOOGLE_SHEETS_WEB_APP_URL.includes(
+        "PASTE_YOUR_",
+      )
+    ) {
+      showSubmitStatus(
+        "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
+        "error",
+      );
+
+      summaryLines.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+
+      return;
+    }
+
+    submitBtn.disabled =
+      true;
+
+    submitBtn.textContent =
+      "Saving Order…";
+
     showSubmitStatus(
-      "Please add at least one fragrance to your cart.",
-      "error",
+      "Saving your order securely…",
+      "success",
     );
 
-    return;
-  }
+    try {
+      const payload =
+        new URLSearchParams({
+          fullname:
+            data.get(
+              "fullname",
+            ) || "",
 
-  const quantityNumber = cart.reduce((sum, item) => sum + item.qty, 0);
+          contact:
+            data.get(
+              "contact",
+            ) || "",
 
-  const orderTotal = getCartTotal();
+          scent: scentName,
 
-  const scentName = cart
-    .map((item) => getProductById(item.id)?.name || item.id)
-    .join(", ");
+          scentId:
+            cart
+              .map(
+                (item) =>
+                  item.id,
+              )
+              .join(","),
 
-  const cartLines = cart
-    .map((item) => {
-      const p = getProductById(item.id);
+          qty:
+            quantityNumber +
+            (quantityNumber ===
+            1
+              ? " bottle"
+              : " bottles"),
 
-      return `
-              ${p.name} × ${item.qty} — ₱${(
-                Number(p.price || PRODUCT_PRICE) * item.qty
-              ).toLocaleString()}
-            `;
-    })
-    .join("\n");
+          items: JSON.stringify(
+            cart.map(
+              (item) => ({
+                id: item.id,
 
-  const lines = [
-    "AURA & ESSENCE — Order",
+                name:
+                  getProductById(
+                    item.id,
+                  )?.name ||
+                  item.id,
 
-    "—————————————",
+                qty: item.qty,
+              }),
+            ),
+          ),
 
-    "Name: " + data.get("fullname"),
+          address:
+            data.get(
+              "address",
+            ) || "",
 
-    "Contact: " + data.get("contact"),
+          payment:
+            data.get(
+              "payment",
+            ) || "",
 
-    "Items:",
+          notes:
+            data.get(
+              "notes",
+            ) || "",
 
-    cartLines,
+          price:
+            "430",
 
-    "Location: " + data.get("address"),
+          total:
+            String(
+              orderTotal,
+            ),
+        });
 
-    "Payment: " + data.get("payment"),
+      // IMPORTANT:
+      // No automatic retry for orders.
+      // Retrying a POST could create duplicate orders.
+      const response =
+        await apiClient.post(
+          Object.fromEntries(
+            payload.entries(),
+          ),
+        );
 
-    "Notes: " + (data.get("notes") || "—"),
+      if (
+        !response.success
+      ) {
+        throw new Error(
+          response.message ||
+            "Unable to save the order.",
+        );
+      }
 
-    "—————————————",
+      showSubmitStatus(
+        "Order saved successfully. We received your order and will contact you soon.",
+        "success",
+      );
 
-    "Total items: " + quantityNumber,
+      document.getElementById(
+        "confirmationOrderId",
+      ).textContent =
+        response.orderId ||
+        "ORDER RECEIVED";
 
-    "Estimated total: ₱" + orderTotal.toLocaleString(),
-  ].join("\n");
+      document.getElementById(
+        "confirmationMessage",
+      ).textContent =
+        `Thank you, ${
+          data.get(
+            "fullname",
+          ) || "customer"
+        }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
 
-  summaryLines.textContent = lines;
+      document
+        .getElementById(
+          "confirmationModal",
+        )
+        .classList.add(
+          "show",
+        );
 
-  summaryEmpty.style.display = "none";
+      document
+        .getElementById(
+          "confirmationModal",
+        )
+        .setAttribute(
+          "aria-hidden",
+          "false",
+        );
 
-  summaryLines.style.display = "block";
+      form.reset();
 
-  summaryActions.style.display = "flex";
+      qtyNumber.value = 1;
 
-  if (GOOGLE_SHEETS_WEB_APP_URL.includes("PASTE_YOUR_")) {
-    showSubmitStatus(
-      "Order summary created, but the Google Sheets database is not connected yet. Add your Apps Script Web App URL in the code.",
-      "error",
-    );
+      cart = [];
+
+      cartManager.clear();
+
+      syncQuantity();
+
+      renderCart();
+
+      renderScentOptions();
+    } catch (err) {
+      console.error(err);
+
+      showSubmitStatus(
+        "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
+        "error",
+      );
+    } finally {
+      submitBtn.disabled =
+        false;
+
+      submitBtn.textContent =
+        "Submit Order";
+    }
 
     summaryLines.scrollIntoView({
       behavior: "smooth",
       block: "nearest",
     });
-
-    return;
-  }
-
-  submitBtn.disabled = true;
-
-  submitBtn.textContent = "Saving Order…";
-
-  showSubmitStatus("Saving your order securely…", "success");
-
-  try {
-    const payload = new URLSearchParams({
-      fullname: data.get("fullname") || "",
-
-      contact: data.get("contact") || "",
-
-      scent: scentName,
-
-      scentId: cart.map((item) => item.id).join(","),
-
-      qty: quantityNumber + (quantityNumber === 1 ? " bottle" : " bottles"),
-
-      items: JSON.stringify(
-        cart.map((item) => ({
-          id: item.id,
-
-          name: getProductById(item.id)?.name || item.id,
-
-          qty: item.qty,
-        })),
-      ),
-
-      address: data.get("address") || "",
-
-      payment: data.get("payment") || "",
-
-      notes: data.get("notes") || "",
-
-      price: "430",
-
-      total: String(orderTotal),
-    });
-
-    const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-
-      body: payload.toString(),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.message || "Unable to save the order.");
-    }
-
-    showSubmitStatus(
-      "Order saved successfully. We received your order and will contact you soon.",
-      "success",
-    );
-
-    document.getElementById("confirmationOrderId").textContent =
-      result.orderId || "ORDER RECEIVED";
-
-    document.getElementById("confirmationMessage").textContent = `Thank you, ${
-      data.get("fullname") || "customer"
-    }. Your order has been received. We will contact you regarding confirmation and delivery or meetup details.`;
-
-    document.getElementById("confirmationModal").classList.add("show");
-
-    document
-      .getElementById("confirmationModal")
-      .setAttribute("aria-hidden", "false");
-
-    form.reset();
-
-    qtyNumber.value = 1;
-
-    cart = [];
-
-    localStorage.removeItem("aeCart");
-
-    syncQuantity();
-
-    renderCart();
-
-    renderScentOptions();
-  } catch (err) {
-    console.error(err);
-
-    showSubmitStatus(
-      "The order summary was created, but saving to the database failed. Please try again or contact us directly.",
-      "error",
-    );
-  } finally {
-    submitBtn.disabled = false;
-
-    submitBtn.textContent = "Submit Order";
-  }
-
-  summaryLines.scrollIntoView({
-    behavior: "smooth",
-    block: "nearest",
-  });
-});
+  },
+);
 
 // ============================================================
 // ORDER CONFIRMATION MODAL
 // ============================================================
 
-const confirmationModal = document.getElementById("confirmationModal");
+const confirmationModal =
+  document.getElementById(
+    "confirmationModal",
+  );
 
 document
-  .getElementById("confirmationCloseBtn")
-  .addEventListener("click", () => {
-    confirmationModal.classList.remove("show");
+  .getElementById(
+    "confirmationCloseBtn",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      confirmationModal.classList.remove(
+        "show",
+      );
 
-    confirmationModal.setAttribute("aria-hidden", "true");
-  });
+      confirmationModal.setAttribute(
+        "aria-hidden",
+        "true",
+      );
+    },
+  );
 
 document
-  .getElementById("confirmationTrackBtn")
-  .addEventListener("click", () => {
-    const id = document
-      .getElementById("confirmationOrderId")
-      .textContent.trim();
+  .getElementById(
+    "confirmationTrackBtn",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      const id =
+        document
+          .getElementById(
+            "confirmationOrderId",
+          )
+          .textContent.trim();
 
-    document.getElementById("trackingOrderId").value = id;
+      document.getElementById(
+        "trackingOrderId",
+      ).value = id;
 
-    confirmationModal.classList.remove("show");
+      confirmationModal.classList.remove(
+        "show",
+      );
 
-    document.getElementById("tracking").scrollIntoView({
-      behavior: "smooth",
-    });
-  });
+      document
+        .getElementById(
+          "tracking",
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+        });
+    },
+  );
 
-confirmationModal.addEventListener("click", (e) => {
-  if (e.target === confirmationModal) {
-    document.getElementById("confirmationCloseBtn").click();
-  }
-});
+confirmationModal?.addEventListener(
+  "click",
+  (e) => {
+    if (
+      e.target ===
+      confirmationModal
+    ) {
+      document
+        .getElementById(
+          "confirmationCloseBtn",
+        )
+        ?.click();
+    }
+  },
+);
 
 // ============================================================
 // ORDER TRACKING
 // ============================================================
 
-const trackingResult = document.getElementById("trackingResult");
+const trackingResult =
+  document.getElementById(
+    "trackingResult",
+  );
 
-const trackingStatus = document.getElementById("trackingStatus");
+const trackingStatus =
+  document.getElementById(
+    "trackingStatus",
+  );
 
-const trackingResultId = document.getElementById("trackingResultId");
+const trackingResultId =
+  document.getElementById(
+    "trackingResultId",
+  );
 
-const trackingResultSummary = document.getElementById("trackingResultSummary");
+const trackingResultSummary =
+  document.getElementById(
+    "trackingResultSummary",
+  );
 
 const trackSteps = [
   "New",
@@ -2416,143 +4240,256 @@ const trackSteps = [
   "Completed",
 ];
 
-function renderTracking(data) {
-  const status = data.status || "New";
+function renderTracking(
+  data,
+) {
+  const status =
+    data.status || "New";
 
   const current = Math.max(
     0,
-    trackSteps.findIndex((x) => x.toLowerCase() === status.toLowerCase()),
+    trackSteps.findIndex(
+      (x) =>
+        x.toLowerCase() ===
+        status.toLowerCase(),
+    ),
   );
 
-  trackingResultId.textContent = data.orderId || "ORDER";
+  trackingResultId.textContent =
+    data.orderId ||
+    "ORDER";
 
   trackingResultSummary.innerHTML = `
-      <p
-        style="
-          color:var(--parchment-dim);
-          font-size:12px;
-          line-height:1.6;
-          margin:12px 0
-        "
-      >
-        ${data.scent || "Order"}
-        •
-        ${data.qty || ""}
-        • ₱${Number(data.total || 0).toLocaleString()}
+    <p
+      style="
+        color:var(--parchment-dim);
+        font-size:12px;
+        line-height:1.6;
+        margin:12px 0
+      "
+    >
+      ${escapeHTML(
+        data.scent ||
+          "Order",
+      )}
+      •
+      ${escapeHTML(
+        data.qty || "",
+      )}
+      • ₱${Number(
+        data.total || 0,
+      ).toLocaleString()}
 
-        <br>
+      <br>
 
-        Customer:
-        ${data.fullname || ""}
-      </p>
-    `;
+      Customer:
+      ${escapeHTML(
+        data.fullname ||
+          "",
+      )}
+    </p>
+  `;
 
-  trackingStatus.innerHTML = trackSteps
-    .map(
-      (step, i) =>
-        `
-            <div
-              class="track-step ${
-                i < current ? "done" : i === current ? "current" : ""
-              }"
-            >
-              ${i < current ? "✓ " : i === current ? "● " : "○ "}
+  trackingStatus.innerHTML =
+    trackSteps
+      .map(
+        (step, i) =>
+          `
+          <div
+            class="track-step ${
+              i < current
+                ? "done"
+                : i === current
+                  ? "current"
+                  : ""
+            }"
+          >
+            ${
+              i < current
+                ? "✓ "
+                : i === current
+                  ? "● "
+                  : "○ "
+            }
 
-              ${step}
+            ${step}
 
-            </div>
-          `,
-    )
-    .join("");
+          </div>
+        `,
+      )
+      .join("");
 
-  trackingResult.classList.add("show");
+  trackingResult.classList.add(
+    "show",
+  );
 }
 
-function showTrackingError(msg) {
-  trackingResult.classList.add("show");
+function showTrackingError(
+  msg,
+) {
+  trackingResult.classList.add(
+    "show",
+  );
 
-  trackingResultId.textContent = "NOT FOUND";
+  trackingResultId.textContent =
+    "NOT FOUND";
 
   trackingResultSummary.innerHTML = `
-      <p
-        style="
-          color:#e8b0b0
-        "
-      >
-        ${msg}
-      </p>
-    `;
+    <p
+      style="
+        color:#e8b0b0
+      "
+    >
+      ${escapeHTML(msg)}
+    </p>
+  `;
 
-  trackingStatus.innerHTML = "";
+  trackingStatus.innerHTML =
+    "";
 }
 
-document.getElementById("trackOrderBtn").addEventListener("click", () => {
-  const orderId = document.getElementById("trackingOrderId").value.trim();
+document
+  .getElementById(
+    "trackOrderBtn",
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+      const orderId =
+        document
+          .getElementById(
+            "trackingOrderId",
+          )
+          .value.trim();
 
-  const contact = document.getElementById("trackingContact").value.trim();
+      const contact =
+        document
+          .getElementById(
+            "trackingContact",
+          )
+          .value.trim();
 
-  if (!orderId || !contact) {
-    showTrackingError("Please enter both your Order ID and contact number.");
+      if (
+        !orderId ||
+        !contact
+      ) {
+        showTrackingError(
+          "Please enter both your Order ID and contact number.",
+        );
 
-    return;
-  }
-
-  const callbackName = "__aeTrack_" + Date.now();
-
-  window[callbackName] = (data) => {
-    try {
-      if (!data?.success) {
-        throw new Error(data?.message || "Order not found.");
+        return;
       }
 
-      renderTracking(data);
-    } catch (e) {
-      showTrackingError(e.message || "Order not found.");
-    } finally {
-      delete window[callbackName];
+      const callbackName =
+        "__aeTrack_" +
+        Date.now();
 
-      script.remove();
-    }
-  };
+      const script =
+        document.createElement(
+          "script",
+        );
 
-  const script = document.createElement("script");
+      let finished = false;
 
-  script.src =
-    GOOGLE_SHEETS_WEB_APP_URL +
-    (GOOGLE_SHEETS_WEB_APP_URL.includes("?") ? "&" : "?") +
-    "action=trackOrder" +
-    "&orderId=" +
-    encodeURIComponent(orderId) +
-    "&contact=" +
-    encodeURIComponent(contact) +
-    "&callback=" +
-    encodeURIComponent(callbackName);
+      const cleanup =
+        () => {
+          if (finished) {
+            return;
+          }
 
-  script.onerror = () => {
-    showTrackingError("The tracking service is temporarily unavailable.");
+          finished = true;
 
-    delete window[callbackName];
+          delete window[
+            callbackName
+          ];
 
-    script.remove();
-  };
+          script.remove();
+        };
 
-  document.body.appendChild(script);
-});
+      window[
+        callbackName
+      ] = (data) => {
+        try {
+          if (
+            !data?.success
+          ) {
+            throw new Error(
+              data?.message ||
+                "Order not found.",
+            );
+          }
+
+          renderTracking(
+            data,
+          );
+        } catch (e) {
+          showTrackingError(
+            e.message ||
+              "Order not found.",
+          );
+        } finally {
+          cleanup();
+        }
+      };
+
+      script.src =
+        GOOGLE_SHEETS_WEB_APP_URL +
+        (GOOGLE_SHEETS_WEB_APP_URL.includes(
+          "?",
+        )
+          ? "&"
+          : "?") +
+        "action=trackOrder" +
+        "&orderId=" +
+        encodeURIComponent(
+          orderId,
+        ) +
+        "&contact=" +
+        encodeURIComponent(
+          contact,
+        ) +
+        "&callback=" +
+        encodeURIComponent(
+          callbackName,
+        );
+
+      script.onerror =
+        () => {
+          showTrackingError(
+            "The tracking service is temporarily unavailable.",
+          );
+
+          cleanup();
+        };
+
+      document.body.appendChild(
+        script,
+      );
+    },
+  );
 
 // ============================================================
 // COPY ORDER SUMMARY
 // ============================================================
 
-copyBtn.addEventListener("click", async function () {
-  try {
-    await navigator.clipboard.writeText(summaryLines.textContent);
+copyBtn?.addEventListener(
+  "click",
+  async function () {
+    try {
+      await navigator.clipboard.writeText(
+        summaryLines.textContent,
+      );
 
-    copyBtn.textContent = "Copied!";
+      copyBtn.textContent =
+        "Copied!";
 
-    setTimeout(() => {
-      copyBtn.textContent = "Copy Order Summary";
-    }, 1800);
-  } catch (err) {
-    copyBtn.textContent = "Select the text above to copy";
-  }
-});
+      setTimeout(() => {
+        copyBtn.textContent =
+          "Copy Order Summary";
+      }, 1800);
+    } catch (err) {
+      copyBtn.textContent =
+        "Select the text above to copy";
+    }
+  },
+);
