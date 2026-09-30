@@ -419,6 +419,61 @@ class AdminApp {
   }
 
 
+  cacheRead(key) {
+    try { return JSON.parse(sessionStorage.getItem(this.cachePrefix + key) || "null"); }
+    catch (_) { return null; }
+  }
+
+  cacheWrite(key, value) {
+    try { sessionStorage.setItem(this.cachePrefix + key, JSON.stringify(value)); }
+    catch (_) {}
+  }
+
+  startRealtime() {
+    if (this.polling) return;
+    this.polling = true;
+    const poll = () => {
+      if (!this.polling || document.hidden || !this.session.valid()) return;
+      this.loadOrders(true).catch(() => {});
+      this.loadDashboard(true).catch(() => {});
+    };
+    this.pollers.orders = setInterval(() => {
+      if (!document.hidden) this.loadOrders(true).catch(() => {});
+    }, 15000);
+    this.pollers.dashboard = setInterval(() => {
+      if (!document.hidden) this.loadDashboard(true).catch(() => {});
+    }, 30000);
+    document.addEventListener("visibilitychange", this._visibilityHandler = () => {
+      if (!document.hidden && this.session.valid()) poll();
+    });
+  }
+
+  stopRealtime() {
+    this.polling = false;
+    if (this.pollers.orders) clearInterval(this.pollers.orders);
+    if (this.pollers.dashboard) clearInterval(this.pollers.dashboard);
+    this.pollers.orders = this.pollers.dashboard = null;
+    if (this._visibilityHandler) document.removeEventListener("visibilitychange", this._visibilityHandler);
+  }
+
+  hydrateCachedAdmin() {
+    const dashboard=this.cacheRead("dashboard");
+    if (dashboard) this.renderDashboard(dashboard);
+    const products=this.cacheRead("products");
+    if (Array.isArray(products)) { this.products=products; this.renderProducts(); }
+    const promotions=this.cacheRead("promotions");
+    if (Array.isArray(promotions)) { this.promotions=promotions; this.renderPromotions(); }
+    const settings=this.cacheRead("settings");
+    if (settings) { this.settings=settings; this.applySettingsToForm(); }
+  }
+
+  applySettingsToForm() {
+    const lowStock=document.getElementById("setLowStock"); if(lowStock) lowStock.value=this.settings.lowStockThreshold||5;
+    const best=document.getElementById("setBest"); if(best) best.checked=this.settings.showBestSellers!=="false";
+    const featured=document.getElementById("setFeatured"); if(featured) featured.checked=this.settings.showFeatured!=="false";
+    const newArrivals=document.getElementById("setNew"); if(newArrivals) newArrivals.checked=this.settings.showNewArrivals!=="false";
+  }
+
   async openApp() {
 
     document
@@ -434,7 +489,8 @@ class AdminApp {
 
 
     try {
-
+      // Cached non-sensitive data paints immediately while fresh data loads.
+      this.hydrateCachedAdmin();
       await Promise.all([
         this.loadDashboard(),
         this.loadProducts(),
@@ -442,19 +498,11 @@ class AdminApp {
         this.loadPromotions(),
         this.loadSettings()
       ]);
-
-
-      this.setStatus(
-        "Admin connected"
-      );
-
-
+      this.setStatus("Admin connected");
+      this.startRealtime();
     } catch (error) {
-
-      this.setStatus(
-        error.message,
-        true
-      );
+      this.setStatus(error.message, true);
+      this.startRealtime();
     }
   }
 
@@ -549,7 +597,7 @@ class AdminApp {
   }
 
 
-  async loadDashboard() {
+  async loadDashboard(silent = false) {
 
     const response =
       await this.request(
@@ -560,9 +608,8 @@ class AdminApp {
       );
 
 
-    this.renderDashboard(
-      response
-    );
+    this.cacheWrite("dashboard", response);
+    this.renderDashboard(response);
   }
 
 
@@ -718,7 +765,7 @@ class AdminApp {
   }
 
 
-  async loadOrders() {
+  async loadOrders(silent = false) {
 
     const response =
       await this.request(
@@ -1025,6 +1072,7 @@ class AdminApp {
 
     this.products =
       response.products || [];
+    this.cacheWrite("products", this.products);
 
 
     /*
@@ -1436,9 +1484,17 @@ class AdminApp {
       product?.projection || 7
     );
 
+    const normalizedStrength = {
+      light: "subtle",
+      subtle: "subtle",
+      moderate: "moderate",
+      strong: "bold",
+      bold: "bold"
+    }[String(product?.strength || "moderate").toLowerCase()] || "moderate";
+
     set(
       "pStrength",
-      product?.strength || "moderate"
+      normalizedStrength
     );
 
     set(
@@ -1696,6 +1752,7 @@ class AdminApp {
 
     this.promotions =
       response.promotions || [];
+    this.cacheWrite("promotions", this.promotions);
 
 
     this.renderPromotions();
@@ -2024,6 +2081,7 @@ class AdminApp {
 
     this.settings =
       response.settings || {};
+    this.cacheWrite("settings", this.settings);
 
 
     const lowStock =
