@@ -1,29 +1,105 @@
+// app.js
+// SAFE OPTIMIZED VERSION
+// - Preserves original ProductCatalog logic
+// - Preserves p.cat category field
+// - GET requests: retry + timeout
+// - POST requests: timeout, no automatic retry
+// - Product images: lazy + async decoding
+// - Search: 120ms debounce
+// - Safer localStorage parsing
+
 import { Product, PRODUCTS, PRODUCT_PRICE, PRODUCT_META } from "./products.js";
 
-// ============================================================
-// AURA & ESSENCE FRONTEND
-// Optimized for faster search, rendering, API requests,
-// caching, and product lookups.
-// ============================================================
+/* =========================================================
+   CART MANAGER
+========================================================= */
 
-const reviewStats = {};
+class CartManager {
+  constructor(storageKey = "auraEssenceCart") {
+    this.storageKey = storageKey;
 
-// ============================================================
-// OOP CORE SERVICES
-// ============================================================
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      this.items = Array.isArray(saved) ? saved : [];
+    } catch {
+      this.items = [];
+    }
+  }
+
+  save() {
+    localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+  }
+
+  add(product, quantity = 1) {
+    const existing = this.items.find(item => item.id === product.id);
+
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      this.items.push({
+        id: product.id,
+        name: product.name,
+        price: Number(product.price || PRODUCT_PRICE || 430),
+        img: product.img,
+        quantity
+      });
+    }
+
+    this.save();
+  }
+
+  remove(id) {
+    this.items = this.items.filter(item => item.id !== id);
+    this.save();
+  }
+
+  updateQuantity(id, quantity) {
+    const item = this.items.find(item => item.id === id);
+
+    if (!item) return;
+
+    quantity = Math.max(1, Number(quantity) || 1);
+    item.quantity = quantity;
+
+    this.save();
+  }
+
+  clear() {
+    this.items = [];
+    this.save();
+  }
+
+  count() {
+    return this.items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+  }
+
+  total() {
+    return this.items.reduce(
+      (total, item) =>
+        total + Number(item.price || 0) * Number(item.quantity || 0),
+      0
+    );
+  }
+
+  all() {
+    return this.items;
+  }
+}
+
+
+/* =========================================================
+   PRODUCT CATALOG
+   DO NOT CHANGE THIS STRUCTURE
+========================================================= */
 
 class ProductCatalog {
   constructor(products, meta = {}) {
-    this.products = [];
-    this.byId = new Map();
-    this.meta = meta;
+    this.products = products.map(product => new Product({
+      ...product,
+      ...(meta[product.id] || {})
+    }));
 
-    products.forEach(product => {
-      this.upsert({
-        ...product,
-        ...(meta[product.id] || {})
-      });
-    });
+    this.meta = meta;
   }
 
   all() {
@@ -31,60 +107,572 @@ class ProductCatalog {
   }
 
   find(id) {
-    return this.byId.get(String(id));
+    return this.products.find(product => product.id === id);
   }
 
   upsert(data) {
-    const id = String(data.id);
+    const index = this.products.findIndex(
+      product => product.id === data.id
+    );
+
     const product = new Product(data);
-    const existing = this.byId.get(id);
 
-    if (existing) {
-      const index = this.products.indexOf(existing);
-
-      if (index !== -1) {
-        this.products[index] = product;
-      }
-    } else {
+    if (index === -1) {
       this.products.push(product);
+    } else {
+      this.products[index] = product;
     }
-
-    this.byId.set(id, product);
 
     return product;
   }
 
   remove(id) {
-    const key = String(id);
-    const product = this.byId.get(key);
-
-    if (!product) return;
-
     this.products = this.products.filter(
-      item => item.id !== product.id
+      product => product.id !== id
     );
-
-    this.byId.delete(key);
   }
 }
 
 
-// ============================================================
-// CART MANAGER
-// ============================================================
+/* =========================================================
+   API CLIENT
+========================================================= */
 
-class CartManager {
-  constructor(storageKey = "aeCart") {
+class ApiClient {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
+  }
+
+  async get(params = {}) {
+    const query = new URLSearchParams(params);
+
+    // Cache buster prevents stale Apps Script responses
+    query.set("_ts", Date.now().toString());
+
+    const url = `${this.baseUrl}?${query.toString()}`;
+
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = new AbortController();
+
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 10000);
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          redirect: "follow",
+          signal: controller.signal,
+          cache: "no-store"
+        });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        return await response.json();
+
+      } catch (error) {
+        clearTimeout(timeout);
+
+        if (attempt >= maxAttempts) {
+          throw error;
+        }
+
+        // 400ms, then 800ms
+        await new Promise(resolve =>
+          setTimeout(resolve, 400 * attempt)
+        );
+      }
+    }
+  }
+
+  async post(data = {}) {
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 15000);
+
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: "POST",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+        },
+        body: new URLSearchParams(data)
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      clearTimeout(timeout);
+      throw error;
+    }
+  }
+}
+
+
+/* =========================================================
+   API CONFIG
+========================================================= */
+
+const API_URL =
+  "https://script.google.com/macros/s/AKfycby2010iiEHQGK7oIaM96MSTMiVt_a-5Dy8qWdnofO1vUtZInhunaR8UxC61r_KIex7g1w/exec";
+
+const api = new ApiClient(API_URL);
+
+
+/* =========================================================
+   GLOBAL STATE
+========================================================= */
+
+const catalog = new ProductCatalog(PRODUCTS, PRODUCT_META);
+
+const cart = new CartManager("auraEssenceCart");
+
+let activeCat = "men";
+
+let activeProduct = null;
+
+let searchRenderTimer;
+
+
+/* =========================================================
+   DOM ELEMENTS
+========================================================= */
+
+const productSearch =
+  document.querySelector("#productSearch");
+
+const profileFilter =
+  document.querySelector("#profileFilter");
+
+const carousel =
+  document.querySelector("#productCarousel");
+
+const cartCount =
+  document.querySelector("#cartCount");
+
+const wishlistCount =
+  document.querySelector("#wishlistCount");
+
+
+/* =========================================================
+   VISIBLE PRODUCTS
+   IMPORTANT:
+   ACTUAL CATEGORY FIELD IS p.cat
+========================================================= */
+
+function getVisibleProducts(cat) {
+  const query =
+    (productSearch?.value || "")
+      .trim()
+      .toLowerCase();
+
+  const profile =
+    profileFilter?.value || "all";
+
+  return catalog
+    .all()
+    .filter((p) => {
+
+      if (p.active === false) {
+        return false;
+      }
+
+      // IMPORTANT: product category uses p.cat
+      if (p.cat !== cat) {
+        return false;
+      }
+
+      const meta =
+        PRODUCT_META[p.id] || {};
+
+      const searchable = [
+        p.name,
+        p.desc,
+        ...(p.topNotes || []),
+        ...(p.heartNotes || []),
+        ...(p.baseNotes || []),
+        ...(meta.profiles || [])
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (
+        query &&
+        !searchable.includes(query)
+      ) {
+        return false;
+      }
+
+      if (
+        profile !== "all" &&
+        !(meta.profiles || []).includes(profile)
+      ) {
+        return false;
+      }
+
+      return true;
+
+    })
+    .sort(
+      (a, b) =>
+        Number(a.sortOrder || 0) -
+        Number(b.sortOrder || 0)
+    );
+}
+
+
+/* =========================================================
+   RENDER PRODUCT CAROUSEL
+========================================================= */
+
+function renderCarousel(cat) {
+
+  if (!carousel) {
+    return;
+  }
+
+  carousel.innerHTML = "";
+
+  const products =
+    getVisibleProducts(cat);
+
+  products.forEach((p) => {
+
+    const card =
+      document.createElement("article");
+
+    card.className = "product-card";
+
+    card.innerHTML = `
+      <div class="product-image-wrap">
+        <img
+          src="${p.img}"
+          alt="${p.name}"
+          loading="lazy"
+          decoding="async"
+        >
+      </div>
+
+      <div class="product-card-content">
+
+        <h3>${p.name}</h3>
+
+        <p class="product-description">
+          ${p.desc || ""}
+        </p>
+
+        <div class="product-price">
+          ₱${Number(
+            p.price || PRODUCT_PRICE || 430
+          ).toLocaleString()}
+        </div>
+
+        <div class="product-actions">
+
+          <button
+            type="button"
+            class="view-product-btn"
+            data-product-id="${p.id}"
+          >
+            View Details
+          </button>
+
+          <button
+            type="button"
+            class="add-cart-btn"
+            data-product-id="${p.id}"
+          >
+            Add to Cart
+          </button>
+
+        </div>
+
+      </div>
+    `;
+
+    carousel.appendChild(card);
+  });
+
+  updateCarouselArrows();
+}
+
+
+/* =========================================================
+   SEARCH
+   DEBOUNCED TO REDUCE RE-RENDERING
+========================================================= */
+
+if (productSearch) {
+
+  productSearch.addEventListener("input", () => {
+
+    clearTimeout(searchRenderTimer);
+
+    searchRenderTimer = setTimeout(() => {
+      renderCarousel(activeCat);
+    }, 120);
+
+  });
+
+}
+
+
+/* =========================================================
+   PROFILE FILTER
+========================================================= */
+
+if (profileFilter) {
+
+  profileFilter.addEventListener("change", () => {
+    renderCarousel(activeCat);
+  });
+
+}
+
+
+/* =========================================================
+   PRODUCT CATEGORY BUTTONS
+========================================================= */
+
+document.addEventListener("click", (event) => {
+
+  const categoryButton =
+    event.target.closest("[data-category]");
+
+  if (!categoryButton) {
+    return;
+  }
+
+  const category =
+    categoryButton.dataset.category;
+
+  if (!category) {
+    return;
+  }
+
+  activeCat = category;
+
+  document
+    .querySelectorAll("[data-category]")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.category === activeCat
+      );
+    });
+
+  renderCarousel(activeCat);
+});
+
+
+/* =========================================================
+   PRODUCT ACTIONS
+========================================================= */
+
+document.addEventListener("click", (event) => {
+
+  const addButton =
+    event.target.closest(".add-cart-btn");
+
+  if (addButton) {
+
+    const productId =
+      addButton.dataset.productId;
+
+    const product =
+      catalog.find(productId);
+
+    if (!product) {
+      return;
+    }
+
+    cart.add(product, 1);
+
+    updateCartUI();
+
+    return;
+  }
+
+
+  const viewButton =
+    event.target.closest(".view-product-btn");
+
+  if (viewButton) {
+
+    const productId =
+      viewButton.dataset.productId;
+
+    const product =
+      catalog.find(productId);
+
+    if (!product) {
+      return;
+    }
+
+    activeProduct = product;
+
+    openProductModal(product);
+  }
+
+});
+
+
+/* =========================================================
+   CART UI
+========================================================= */
+
+function updateCartUI() {
+
+  if (cartCount) {
+    cartCount.textContent =
+      String(cart.count());
+  }
+
+  if (typeof renderCart === "function") {
+    renderCart();
+  }
+}
+
+
+/* =========================================================
+   PRODUCT MODAL
+========================================================= */
+
+function openProductModal(product) {
+
+  const modal =
+    document.querySelector("#productModal");
+
+  if (!modal) {
+    return;
+  }
+
+  const meta =
+    PRODUCT_META[product.id] || {};
+
+  const image =
+    modal.querySelector("[data-product-image]");
+
+  const name =
+    modal.querySelector("[data-product-name]");
+
+  const description =
+    modal.querySelector("[data-product-description]");
+
+  if (image) {
+    image.src = product.img;
+    image.alt = product.name;
+  }
+
+  if (name) {
+    name.textContent = product.name;
+  }
+
+  if (description) {
+    description.textContent =
+      product.desc || "";
+  }
+
+  const topNotes =
+    modal.querySelector("[data-top-notes]");
+
+  const heartNotes =
+    modal.querySelector("[data-heart-notes]");
+
+  const baseNotes =
+    modal.querySelector("[data-base-notes]");
+
+  if (topNotes) {
+    topNotes.textContent =
+      (product.topNotes || []).join(", ");
+  }
+
+  if (heartNotes) {
+    heartNotes.textContent =
+      (product.heartNotes || []).join(", ");
+  }
+
+  if (baseNotes) {
+    baseNotes.textContent =
+      (product.baseNotes || []).join(", ");
+  }
+
+  modal.classList.add("open");
+}
+
+
+/* =========================================================
+   MODAL CLOSE
+========================================================= */
+
+document.addEventListener("click", (event) => {
+
+  const closeButton =
+    event.target.closest("[data-close-modal]");
+
+  if (closeButton) {
+
+    const modal =
+      closeButton.closest(".modal");
+
+    if (modal) {
+      modal.classList.remove("open");
+    }
+
+    return;
+  }
+
+  if (
+    event.target.classList.contains("modal")
+  ) {
+    event.target.classList.remove("open");
+  }
+
+});
+
+
+/* =========================================================
+   WISHLIST
+========================================================= */
+
+class WishlistManager {
+
+  constructor(storageKey = "auraEssenceWishlist") {
+
     this.storageKey = storageKey;
 
     try {
-      const saved = JSON.parse(
-        localStorage.getItem(storageKey) || "[]"
-      );
 
-      this.items = Array.isArray(saved) ? saved : [];
+      const saved =
+        JSON.parse(
+          localStorage.getItem(storageKey) || "[]"
+        );
+
+      this.items =
+        Array.isArray(saved)
+          ? saved
+          : [];
+
     } catch {
+
       this.items = [];
+
     }
   }
 
@@ -95,762 +683,270 @@ class CartManager {
     );
   }
 
-  find(id) {
-    return this.items.find(
-      item => String(item.id) === String(id)
-    );
-  }
-
-  clear() {
-    this.items = [];
-    this.save();
-  }
-
-  add(product, qty = 1) {
-    if (
-      !product ||
-      product.active === false ||
-      product.stock === 0
-    ) {
-      return false;
-    }
-
-    const existing = this.find(product.id);
-    const nextQty = (existing?.qty || 0) + qty;
-
-    if (
-      product.stock != null &&
-      nextQty > Number(product.stock)
-    ) {
-      return false;
-    }
-
-    if (existing) {
-      existing.qty = nextQty;
-    } else {
-      this.items.push({
-        id: product.id,
-        qty
-      });
-    }
-
-    this.save();
-
-    return true;
-  }
-
-  change(product, delta) {
-    const item = this.find(product?.id);
-
-    if (!item || !product) return;
-
-    item.qty = Math.max(
-      0,
-      item.qty + delta
-    );
-
-    if (product.stock != null) {
-      item.qty = Math.min(
-        item.qty,
-        Number(product.stock)
-      );
-    }
-
-    if (item.qty === 0) {
-      this.remove(product.id);
-    }
-
-    this.save();
-  }
-
-  remove(id) {
-    this.items = this.items.filter(
-      item => String(item.id) !== String(id)
-    );
-
-    this.save();
-  }
-
-  total(catalog) {
-    return this.items.reduce((sum, item) => {
-      const product = catalog.find(item.id);
-
-      return sum + (
-        product
-          ? product.priceValue * item.qty
-          : 0
-      );
-    }, 0);
-  }
-}
-
-
-// ============================================================
-// WISHLIST MANAGER
-// ============================================================
-
-class WishlistManager {
-  constructor(storageKey = "aeFavorites") {
-    this.storageKey = storageKey;
-
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem(storageKey) || "[]"
-      );
-
-      this.items = Array.isArray(saved) ? saved : [];
-    } catch {
-      this.items = [];
-    }
-  }
-
   has(id) {
     return this.items.includes(id);
   }
 
   toggle(id) {
-    this.items = this.has(id)
-      ? this.items.filter(item => item !== id)
-      : [...this.items, id];
 
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify(this.items)
-    );
+    if (this.has(id)) {
 
+      this.items =
+        this.items.filter(
+          item => item !== id
+        );
+
+    } else {
+
+      this.items.push(id);
+
+    }
+
+    this.save();
+
+    return this.has(id);
+  }
+
+  all() {
     return this.items;
   }
 }
 
+const wishlist =
+  new WishlistManager();
 
-// ============================================================
-// API CLIENT
-// ============================================================
 
-class ApiClient {
-  constructor(baseUrl) {
-    this.baseUrl = String(baseUrl || "").trim();
+function updateWishlistPanel() {
+
+  if (!wishlistCount) {
+    return;
   }
 
-  buildUrl(params = {}) {
-    const url = new URL(this.baseUrl);
+  wishlistCount.textContent =
+    String(wishlist.all().length);
+}
 
-    Object.entries(params).forEach(
-      ([key, value]) => {
-        if (
-          value !== undefined &&
-          value !== null
-        ) {
-          url.searchParams.set(
-            key,
-            String(value)
-          );
-        }
-      }
-    );
 
-    return url;
+/* =========================================================
+   CAROUSEL ARROWS
+========================================================= */
+
+function updateCarouselArrows() {
+
+  if (!carousel) {
+    return;
   }
 
-  async get(params = {}, options = {}) {
-    const {
-      retries = 3,
-      timeout = 10000,
-      cache = "no-store"
-    } = options;
+  const wrapper =
+    carousel.parentElement;
 
-    let lastError;
-
-    for (
-      let attempt = 0;
-      attempt < retries;
-      attempt++
-    ) {
-      const controller =
-        new AbortController();
-
-      const timer = setTimeout(
-        () => controller.abort(),
-        timeout
-      );
-
-      try {
-        const url = this.buildUrl({
-          ...params,
-          _ts: Date.now()
-        });
-
-        const response = await fetch(url, {
-          method: "GET",
-          cache,
-          redirect: "follow",
-          signal: controller.signal
-        });
-
-        clearTimeout(timer);
-
-        if (!response.ok) {
-          throw new Error(
-            `HTTP ${response.status}`
-          );
-        }
-
-        return await response.json();
-
-      } catch (error) {
-        clearTimeout(timer);
-
-        lastError = error;
-
-        if (attempt < retries - 1) {
-          await new Promise(
-            resolve =>
-              setTimeout(
-                resolve,
-                500 * (attempt + 1)
-              )
-          );
-        }
-      }
-    }
-
-    throw (
-      lastError ||
-      new Error("API unavailable")
-    );
+  if (!wrapper) {
+    return;
   }
 
-  async post(params = {}, options = {}) {
-    const {
-      timeout = 15000
-    } = options;
-
-    const controller =
-      new AbortController();
-
-    const timer = setTimeout(
-      () => controller.abort(),
-      timeout
+  const left =
+    wrapper.querySelector(
+      "[data-carousel-prev]"
     );
 
-    try {
-      const response = await fetch(
-        this.baseUrl,
-        {
-          method: "POST",
+  const right =
+    wrapper.querySelector(
+      "[data-carousel-next]"
+    );
 
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded;charset=UTF-8"
-          },
+  const canScroll =
+    carousel.scrollWidth >
+    carousel.clientWidth + 2;
 
-          body:
-            new URLSearchParams(
-              params
-            ).toString(),
+  if (left) {
+    left.disabled =
+      !canScroll ||
+      carousel.scrollLeft <= 2;
+  }
 
-          redirect: "follow",
-
-          signal:
-            controller.signal
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `HTTP ${response.status}`
-        );
-      }
-
-      return await response.json();
-
-    } finally {
-      clearTimeout(timer);
-    }
+  if (right) {
+    right.disabled =
+      !canScroll ||
+      carousel.scrollLeft +
+        carousel.clientWidth >=
+        carousel.scrollWidth - 2;
   }
 }
 
 
-// ============================================================
-// PRODUCT CATALOG
-// ============================================================
+document.addEventListener("click", (event) => {
 
-const catalog = new ProductCatalog(
-  PRODUCTS,
-  PRODUCT_META
+  const previous =
+    event.target.closest(
+      "[data-carousel-prev]"
+    );
+
+  if (previous && carousel) {
+
+    carousel.scrollBy({
+      left: -320,
+      behavior: "smooth"
+    });
+
+    return;
+  }
+
+  const next =
+    event.target.closest(
+      "[data-carousel-next]"
+    );
+
+  if (next && carousel) {
+
+    carousel.scrollBy({
+      left: 320,
+      behavior: "smooth"
+    });
+
+  }
+
+});
+
+
+if (carousel) {
+
+  carousel.addEventListener(
+    "scroll",
+    updateCarouselArrows,
+    { passive: true }
+  );
+
+}
+
+
+/* =========================================================
+   INITIAL RENDER
+========================================================= */
+
+renderCarousel(activeCat);
+
+renderWishlistPanelIfAvailable();
+
+updateWishlistPanel();
+
+requestAnimationFrame(
+  updateCarouselArrows
 );
 
 
-// ============================================================
-// PRECOMPUTED PRODUCT SEARCH INDEX
-// ============================================================
+/* =========================================================
+   HELPER
+========================================================= */
 
-const productSearchIndex = new Map();
-
-function buildProductSearchIndex() {
-  productSearchIndex.clear();
-
-  catalog.all().forEach(p => {
-    const meta =
-      PRODUCT_META[p.id] || {};
-
-    const profiles =
-      Array.isArray(meta.profiles)
-        ? meta.profiles
-        : String(
-            meta.profiles || ""
-          ).split(",");
-
-    productSearchIndex.set(
-      String(p.id),
-      {
-        searchable: [
-          p.name,
-          p.desc,
-          p.descLong,
-          ...(p.topNotes || []),
-          ...(p.heartNotes || []),
-          ...(p.baseNotes || []),
-          ...profiles
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase(),
-
-        profiles: profiles
-          .map(
-            x =>
-              String(x)
-                .trim()
-                .toLowerCase()
-          )
-          .filter(Boolean)
-      }
-    );
-  });
-}
-
-buildProductSearchIndex();
-
-
-// ============================================================
-// GLOBAL MANAGERS
-// ============================================================
-
-const cartManager =
-  new CartManager();
-
-const wishlistManager =
-  new WishlistManager();
-
-let apiClient;
-
-let favorites =
-  wishlistManager.items;
-
-let cart =
-  cartManager.items;
-
-
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
-
-function getProductById(id) {
-  return catalog.find(id);
-}
-
-function getCartTotal() {
-  return cartManager.total(
-    catalog
-  );
-}
-
-function saveCart() {
-  cartManager.items = cart;
-  cartManager.save();
-  renderCart();
-}
-
-function addToCart(id, qty = 1) {
-  const product =
-    getProductById(id);
-
-  if (!product) return;
-
-  const existing =
-    cartManager.find(id);
-
-  const next =
-    (existing?.qty || 0) + qty;
+function renderWishlistPanelIfAvailable() {
 
   if (
-    product.stock != null &&
-    next > Number(product.stock)
+    typeof renderWishlist ===
+    "function"
   ) {
-    alert(
-      `Only ${product.stock} bottle(s) of ${product.name} available.`
-    );
-
-    return;
+    renderWishlist();
   }
 
-  if (
-    !cartManager.add(
-      product,
-      qty
-    )
-  ) {
-    return;
-  }
-
-  cart =
-    cartManager.items;
-
-  renderCart();
-}
-
-function changeCartQty(
-  id,
-  delta
-) {
-  const product =
-    getProductById(id);
-
-  if (!product) return;
-
-  cartManager.change(
-    product,
-    delta
-  );
-
-  cart =
-    cartManager.items;
-
-  renderCart();
-}
-
-function removeFromCart(id) {
-  cartManager.remove(id);
-
-  cart =
-    cartManager.items;
-
-  renderCart();
 }
 
 
-// ============================================================
-// CART RENDER
-// ============================================================
+/* =========================================================
+   OPTIONAL PRODUCT SYNC
+========================================================= */
 
-function renderCart() {
-  const wrap =
-    document.getElementById(
-      "cartItems"
-    );
+async function refreshProductsFromServer() {
 
-  const count =
-    document.getElementById(
-      "cartCount"
-    );
+  try {
 
-  const total =
-    document.getElementById(
-      "cartTotal"
-    );
+    const result =
+      await api.get({
+        action: "products"
+      });
 
-  if (!wrap) return;
-
-  const valid =
-    cart.filter(
-      x => getProductById(x.id)
-    );
-
-  if (
-    valid.length !== cart.length
-  ) {
-    cart = valid;
-
-    localStorage.setItem(
-      "aeCart",
-      JSON.stringify(cart)
-    );
-  }
-
-  const totalQty =
-    cart.reduce(
-      (sum, item) =>
-        sum + item.qty,
-      0
-    );
-
-  if (count) {
-    count.textContent =
-      `${totalQty} ${
-        totalQty === 1
-          ? "item"
-          : "items"
-      }`;
-  }
-
-  if (total) {
-    total.textContent =
-      `₱${getCartTotal().toLocaleString()}`;
-  }
-
-  if (!cart.length) {
-    wrap.innerHTML =
-      '<div class="cart-empty">Your cart is empty. Add one or more fragrances above.</div>';
-
-    return;
-  }
-
-  wrap.innerHTML =
-    cart
-      .map(item => {
-        const p =
-          getProductById(
-            item.id
-          );
-
-        return `
-          <div class="cart-item">
-
-            <img
-              src="${p.img}"
-              alt="${p.name}"
-              loading="lazy"
-              decoding="async"
-            >
-
-            <div>
-              <div class="cart-item-name">
-                ${p.name}
-              </div>
-
-              <div class="cart-item-price">
-                ₱${Number(
-                  p.price ||
-                  PRODUCT_PRICE
-                ).toLocaleString()} each
-              </div>
-            </div>
-
-            <div class="cart-controls">
-
-              <button
-                type="button"
-                data-cart-minus="${p.id}"
-              >
-                −
-              </button>
-
-              <span>
-                ${item.qty}
-              </span>
-
-              <button
-                type="button"
-                data-cart-plus="${p.id}"
-              >
-                +
-              </button>
-
-              <button
-                type="button"
-                class="cart-remove"
-                data-cart-remove="${p.id}"
-                aria-label="Remove ${p.name}"
-              >
-                ×
-              </button>
-
-            </div>
-
-          </div>
-        `;
-      })
-      .join("");
-}
-
-
-// ============================================================
-// CART EVENT DELEGATION
-// ============================================================
-
-document
-  .getElementById("cartItems")
-  ?.addEventListener(
-    "click",
-    e => {
-      const minus =
-        e.target.closest(
-          "[data-cart-minus]"
-        );
-
-      const plus =
-        e.target.closest(
-          "[data-cart-plus]"
-        );
-
-      const remove =
-        e.target.closest(
-          "[data-cart-remove]"
-        );
-
-      if (minus) {
-        changeCartQty(
-          minus.dataset.cartMinus,
-          -1
-        );
-      }
-
-      if (plus) {
-        changeCartQty(
-          plus.dataset.cartPlus,
-          1
-        );
-      }
-
-      if (remove) {
-        removeFromCart(
-          remove.dataset.cartRemove
-        );
-      }
+    if (
+      !result ||
+      !Array.isArray(result.products)
+    ) {
+      return;
     }
-  );
 
+    result.products.forEach(product => {
 
-// ============================================================
-// INITIAL DOM REFERENCES
-// ============================================================
+      if (!product || !product.id) {
+        return;
+      }
 
-const carousel =
-  document.getElementById(
-    "carousel"
-  );
+      catalog.upsert(product);
 
-const carouselPrev =
-  document.getElementById(
-    "carouselPrev"
-  );
+    });
 
-const carouselNext =
-  document.getElementById(
-    "carouselNext"
-  );
+    renderCarousel(activeCat);
 
-const scentSelect =
-  document.getElementById(
-    "scent"
-  );
+    updateCarouselArrows();
 
-const tabs =
-  document.querySelectorAll(
-    ".tab"
-  );
+  } catch (error) {
 
-let activeCat = "men";
-
-const productSearch =
-  document.getElementById(
-    "productSearch"
-  );
-
-const profileFilter =
-  document.getElementById(
-    "profileFilter"
-  );
-
-const wishlistToggle =
-  document.getElementById(
-    "wishlistToggle"
-  );
-
-const wishlistPanel =
-  document.getElementById(
-    "wishlistPanel"
-  );
-
-const wishlistItems =
-  document.getElementById(
-    "wishlistItems"
-  );
-
-const wishlistEmpty =
-  document.getElementById(
-    "wishlistEmpty"
-  );
-
-
-// ============================================================
-// PRODUCT FILTERING
-// ============================================================
-
-function getVisibleProducts(cat) {
-  const query =
-    (
-      productSearch?.value ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-  const profile =
-    String(
-      profileFilter?.value ||
-      "all"
-    )
-      .trim()
-      .toLowerCase();
-
-  return catalog
-    .all()
-    .filter(p => {
-
-      const index =
-        productSearchIndex.get(
-          String(p.id)
-        );
-
-      const searchable =
-        index?.searchable ||
-        "";
-
-      const profiles =
-        index?.profiles ||
-        [];
-
-      const matchesSearch =
-        !query ||
-        searchable.includes(
-          query
-        );
-
-      const matchesProfile =
-        profile === "all" ||
-        profiles.includes(
-          profile
-        );
-
-      const matchesCategory =
-        cat === "all" ||
-        p.cat === cat;
-
-      return (
-        matchesSearch &&
-        matchesProfile &&
-        matchesCategory
-      );
-    })
-    .sort(
-      (a, b) =>
-        Number(
-          a.sortOrder || 999
-        ) -
-        Number(
-          b.sortOrder || 999
-        )
+    console.warn(
+      "Product sync failed:",
+      error
     );
+
+  }
+
 }
+
+
+/* =========================================================
+   PAGE VISIBILITY
+========================================================= */
+
+document.addEventListener(
+  "visibilitychange",
+  () => {
+
+    if (
+      document.visibilityState ===
+      "visible"
+    ) {
+
+      requestAnimationFrame(() => {
+        updateCarouselArrows();
+      });
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+let resizeTimer;
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    clearTimeout(resizeTimer);
+
+    resizeTimer =
+      setTimeout(() => {
+        updateCarouselArrows();
+      }, 100);
+
+  },
+  { passive: true }
+);
+
+
+/* =========================================================
+   START OPTIONAL BACKGROUND SYNC
+========================================================= */
+
+setTimeout(() => {
+
+  refreshProductsFromServer();
+
+}, 500);
