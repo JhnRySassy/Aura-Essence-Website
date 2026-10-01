@@ -1422,6 +1422,7 @@ function renderScentOptions() {
   scentSelect.innerHTML =
     catalog
       .all()
+      .filter((p) => p.active == true)
       .map(
         (p) =>
           `<option value="${p.id}">${p.name} (${
