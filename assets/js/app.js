@@ -2257,6 +2257,7 @@ function renderReviewScentOptions() {
     '<option value="">Choose a scent</option>' +
     catalog
       .all()
+      .filter((p) => p.active == true)
       .map(
         (p) =>
           `<option value="${p.id}">${p.name}</option>`,
