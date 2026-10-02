@@ -491,10 +491,172 @@ function getProductById(id) {
   return catalog.find(id);
 }
 
-function getCartTotal() {
+let activePromotions = [];
+
+function getCartSubtotal() {
   return cartManager.total(
     catalog,
   );
+}
+
+function getCartQuantity() {
+  return cart.reduce(
+    (sum, item) =>
+      sum + Number(item.qty || 0),
+    0,
+  );
+}
+
+function getApplicablePromotion(quantity = getCartQuantity()) {
+  if (!quantity || !activePromotions.length) {
+    return null;
+  }
+
+  return activePromotions
+    .filter((promotion) => {
+      const minQty = Number(
+        promotion.minQty || 0,
+      );
+
+      if (
+        !promotion.active ||
+        quantity < minQty
+      ) {
+        return false;
+      }
+
+      if (promotion.type === "fixed_total") {
+        return quantity === minQty;
+      }
+
+      if (promotion.type === "percent") {
+        return true;
+      }
+
+      return false;
+    })
+    .sort(
+      (a, b) =>
+        Number(b.minQty || 0) -
+        Number(a.minQty || 0),
+    )[0] || null;
+}
+
+function calculatePromotionDiscount(
+  subtotal,
+  quantity = getCartQuantity(),
+) {
+  const promotion =
+    getApplicablePromotion(quantity);
+
+  if (!promotion) {
+    return {
+      discount: 0,
+      total: subtotal,
+      promotion: null,
+    };
+  }
+
+  if (promotion.type === "fixed_total") {
+    const fixedTotal = Number(
+      promotion.fixedTotal || 0,
+    );
+
+    if (
+      fixedTotal > 0 &&
+      fixedTotal < subtotal
+    ) {
+      return {
+        discount: subtotal - fixedTotal,
+        total: fixedTotal,
+        promotion,
+      };
+    }
+  }
+
+  if (promotion.type === "percent") {
+    const percent = Math.min(
+      100,
+      Math.max(
+        0,
+        Number(
+          promotion.percentOff || 0,
+        ),
+      ),
+    );
+
+    const discount = Number(
+      (subtotal * (percent / 100)).toFixed(2),
+    );
+
+    return {
+      discount,
+      total: Math.max(
+        0,
+        Number(
+          (subtotal - discount).toFixed(2),
+        ),
+      ),
+      promotion,
+    };
+  }
+
+  return {
+    discount: 0,
+    total: subtotal,
+    promotion: null,
+  };
+}
+
+function getCartTotal() {
+  return calculatePromotionDiscount(
+    getCartSubtotal(),
+  ).total;
+}
+
+async function loadActivePromotions() {
+  if (
+    GOOGLE_SHEETS_WEB_APP_URL.includes(
+      "PASTE_YOUR_",
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const result =
+      await apiClient.get({
+        action: "promotions",
+      });
+
+    if (
+      !result.success ||
+      !Array.isArray(
+        result.promotions,
+      )
+    ) {
+      activePromotions = [];
+      return;
+    }
+
+    activePromotions =
+      result.promotions.filter(
+        (promotion) =>
+          promotion.active === true ||
+          String(
+            promotion.active,
+          ).toLowerCase() === "true",
+      );
+
+    renderCart();
+    syncQuantity();
+  } catch (error) {
+    console.warn(
+      "Promotions unavailable; using regular prices.",
+      error,
+    );
+    activePromotions = [];
+  }
 }
 
 function saveCart() {
@@ -2194,6 +2356,7 @@ async function loadManagedProducts() {
 }
 
 loadManagedProducts();
+loadActivePromotions();
 
 // ============================================================
 // CUSTOMER REVIEWS
@@ -3595,10 +3758,19 @@ const duoTotal =
     select.addEventListener(
       "change",
       () => {
+        const duoSubtotal =
+          PRODUCT_PRICE * 2;
+
+        const duoPreview =
+          calculatePromotionDiscount(
+            duoSubtotal,
+            2,
+          );
+
         duoTotal.textContent =
-          `2 bottles • ₱${(
-            PRODUCT_PRICE * 2
-          ).toLocaleString()}`;
+          duoPreview.promotion
+            ? `2 bottles • ₱${duoPreview.total.toLocaleString()} — ${duoPreview.promotion.name}`
+            : `2 bottles • ₱${duoPreview.total.toLocaleString()}`;
       },
     );
   },
@@ -3734,17 +3906,26 @@ function syncQuantity() {
       selectedId,
     );
 
+  const singleItemSubtotal =
+    (p
+      ? Number(
+          p.price ||
+            PRODUCT_PRICE,
+        )
+      : PRODUCT_PRICE) *
+    n;
+
+  const preview =
+    calculatePromotionDiscount(
+      singleItemSubtotal,
+      n,
+    );
+
   liveTotal.textContent =
-    "Estimated total: ₱" +
-    (
-      (p
-        ? Number(
-            p.price ||
-              PRODUCT_PRICE,
-          )
-        : PRODUCT_PRICE) *
-      n
-    ).toLocaleString();
+    preview.promotion
+      ? `Estimated total: ₱${preview.total.toLocaleString()} — ${preview.promotion.name}`
+      : "Estimated total: ₱" +
+        preview.total.toLocaleString();
 
   return n;
 }
